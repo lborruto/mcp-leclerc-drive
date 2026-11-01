@@ -276,13 +276,13 @@ server.registerTool(
   "get_store",
   {
     title: "Magasin actif",
-    description: "Affiche le magasin actuellement sélectionné (id, hôte).",
+    description: "Affiche le magasin sélectionné (id, hôte) et l'état de la fenêtre Chrome du serveur.",
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   () =>
     run(async () => {
       const s = store.current();
-      return `Magasin actif : ${s.name ?? s.storeId} (id=${s.storeId} @ ${s.host}).`;
+      return `Magasin actif : ${s.name ?? s.storeId} (id=${s.storeId} @ ${s.host}).\n${await browser.status()}`;
     }),
 );
 

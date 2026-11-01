@@ -65,6 +65,7 @@ test("a Chrome that cannot be started is reported at once, not after the 20 s wa
     headless: true,
     chromePath: join(tmpdir(), "no-such-chrome-binary"),
   });
+  assert.match(await s.status(), /pas ouvert/);
   const started = Date.now();
   await assert.rejects(s.fetch({ url: "https://www.leclercdrive.fr/" }, "/"), /Chrome ne démarre pas.*ENOENT/);
   assert.ok(Date.now() - started < 5000, "failed fast");
