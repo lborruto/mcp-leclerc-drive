@@ -112,8 +112,6 @@ le beurre ». Then open the cart on leclercdrive.fr and check out yourself.
 }
 ```
 
-Run one MCP client with it at a time: they would share the same Chrome window.
-
 ## Tools
 
 | Tool | What it does |
@@ -140,6 +138,21 @@ NAME=value …`):
 | `LECLERC_STORE_ID`, `LECLERC_HOST` | none | A drive to start with, instead of `set_store`. |
 
 Throttling and retries have their own settings; see [CONTRIBUTING.md](CONTRIBUTING.md#configuration).
+
+## Good to know
+
+- **One drive at a time.** Your Leclerc session is tied to the drive chosen on the site. To shop
+  at another drive, choose it in the Chrome window too, then `set_store` it; otherwise Leclerc
+  answers with an expired-session page.
+- **Blocked or logged out?** If a tool says Leclerc Drive blocked it or the session expired,
+  reload the page in the server's Chrome window (log in again if asked) and retry. Keep the pace
+  of a person: one shopping list at a time.
+- **Quantities are checked by Leclerc.** If a product is short or limited, the tool says how
+  many went into the cart. Prices are the site's at the time of the search.
+- **Relays have their own id.** `find_stores` lists truck and pedestrian relays as
+  `027411-027499`: they share their drive's number.
+- **Shop from one Claude session at a time.** Several sessions share the same Chrome and login,
+  each in its own tab, but each paces only its own requests.
 
 ## Upgrading
 
