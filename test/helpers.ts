@@ -2,7 +2,11 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { ChromeSession } from "../src/browser.js";
 import { LeclercConfig } from "../src/config.js";
+import { LeclercClient } from "../src/leclerc/client.js";
+import { PageHttp } from "../src/leclerc/http.js";
+import { Throttler } from "../src/leclerc/throttle.js";
 import { StoreState } from "../src/store.js";
 
 /** A config with no throttling delays, for tests. */
@@ -38,4 +42,13 @@ export function storePage(products: Array<Record<string, unknown>> = [], cart: A
     `var ctx={"Panier":{"lstProduits":[${lines}],"lstProduitsLight":[],"iQuantitePanier":0,` +
     `"sTotalAPayer":"${total} €"}};</script>`
   );
+}
+
+/** A store client wired like index.ts (shared throttler, PageHttp), on a test config. */
+export function makeClient(config: LeclercConfig, session: ChromeSession, store: StoreState): LeclercClient {
+  return new LeclercClient(makeHttp(config, session), store);
+}
+
+export function makeHttp(config: LeclercConfig, session: ChromeSession): PageHttp {
+  return new PageHttp(session, new Throttler(config));
 }

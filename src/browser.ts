@@ -75,6 +75,18 @@ async function tryJson(url: string, method = "GET"): Promise<Any> {
   }
 }
 
+/** An in-page fetch that threw (network error, CORS, cross-origin redirect…). */
+export class BrowserFetchError extends Error {
+  /** Chrome's opaque "TypeError: Failed to fetch": CORS, a cross-origin redirect, the network. */
+  readonly failedToFetch: boolean;
+
+  constructor(detail: string) {
+    super(`Requête via le navigateur échouée: ${detail}`);
+    this.name = "BrowserFetchError";
+    this.failedToFetch = /Failed to fetch/i.test(detail);
+  }
+}
+
 function parseUrl(u: string): URL | null {
   try {
     return new URL(u);
@@ -219,6 +231,11 @@ export class ChromeSession {
     return landed;
   }
 
+  /** Forget where the tab is, so the next fetch navigates again. */
+  invalidatePage(): void {
+    this.landedUrl = "";
+  }
+
   /** The tab's real URL, as the page itself reports it. */
   private async locationHref(): Promise<string> {
     const r = await this.cdp("Runtime.evaluate", {
@@ -269,7 +286,7 @@ export class ChromeSession {
     const v = r.result?.result?.value;
     if (!v || v.error) {
       const detail = v?.error || r.result?.exceptionDetails?.text || "erreur inconnue";
-      throw new Error(`Requête via le navigateur échouée: ${detail}`);
+      throw new BrowserFetchError(String(detail));
     }
     return {
       pageUrl: landed.href,

@@ -13,7 +13,9 @@
 import { ChromeSession } from "../dist/browser.js";
 import { loadConfig } from "../dist/config.js";
 import { LeclercClient } from "../dist/leclerc/client.js";
+import { PageHttp } from "../dist/leclerc/http.js";
 import { StoreLocator } from "../dist/leclerc/locator.js";
+import { Throttler } from "../dist/leclerc/throttle.js";
 import { StoreState } from "../dist/store.js";
 
 const term = process.argv[2] || "café";
@@ -25,8 +27,9 @@ const browser = new ChromeSession({
   headless: config.headless,
 });
 const store = new StoreState(config);
-const client = new LeclercClient(config, browser, store);
-const locator = new StoreLocator(config, browser);
+const http = new PageHttp(browser, new Throttler(config));
+const client = new LeclercClient(http, store);
+const locator = new StoreLocator(http);
 
 const showCart = (label, c) =>
   console.log(

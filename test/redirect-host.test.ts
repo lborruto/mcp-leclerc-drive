@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { LeclercClient } from "../src/leclerc/client.js";
 import { fakeChrome, Site } from "./fake-chrome.js";
-import { storePage, tempStore, testConfig } from "./helpers.js";
+import { makeClient, storePage, tempStore, testConfig } from "./helpers.js";
 
 // Issue #1: the locator gives a generic host (fd1-courses) that 302s to the
 // store's own shard; every in-page fetch on fd1 is then cross-origin.
@@ -29,7 +28,7 @@ function setup() {
   const chrome = fakeChrome(site);
   const { store, file } = tempStore(config);
   store.set({ storeId: "085111", noPR: "085111", host: "fd1-courses.leclercdrive.fr" });
-  const client = new LeclercClient(config, chrome.session, store);
+  const client = makeClient(config, chrome.session, store);
   return { chrome, store, file, client };
 }
 
@@ -68,6 +67,6 @@ test("a page that lands off the store explains what to do", async () => {
     url.host === "fd9-courses.leclercdrive.fr" ? { redirect: "https://www.leclercdrive.fr/" } : { body: "accueil" },
   );
   const { store } = tempStore(config);
-  const client = new LeclercClient(config, chrome.session, store);
+  const client = makeClient(config, chrome.session, store);
   await assert.rejects(client.searchProducts("lait"), /atterri sur https:\/\/www\.leclercdrive\.fr\/.*connecté/);
 });

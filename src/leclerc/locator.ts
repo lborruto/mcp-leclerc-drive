@@ -9,19 +9,17 @@
  *   2. /autocomplete/coordinates?id=.. → lat/lng for the chosen place
  *   3. /MapPoint/nearby?lat&lng&cp     → nearby stores (id, name, host, services)
  *
- * Like the rest of the site this API sits behind DataDome, so requests replay
- * the Chrome session cookie and go through the same throttle/retry layer.
+ * Like the rest of the site this API sits behind DataDome, so requests run in
+ * the real Chrome and go through the same throttle/retry layer as the store.
  */
 
-import { ChromeSession } from "../browser.js";
-import { LeclercConfig } from "../config.js";
-import { delay, Throttler } from "./throttle.js";
+import { PageResponse } from "../browser.js";
+import { PageHttp } from "./http.js";
 
 const API_BASE =
   "https://api-recherchemagasins.leclercdrive.fr/API_RechercheMagasins/api/v1";
 /** Page origin the locator fetches run from (CORS-allowed for the locator API). */
 const LOCATOR_PAGE = { url: "https://www.leclercdrive.fr/" };
-const RETRYABLE_STATUSES = new Set([403, 429]);
 
 export interface FoundStore {
   storeId: string; // noPL
@@ -53,19 +51,7 @@ interface NearbyPoint {
 }
 
 export class StoreLocator {
-  private readonly throttler: Throttler;
-
-  constructor(
-    private readonly config: LeclercConfig,
-    private readonly browser: ChromeSession,
-  ) {
-    this.throttler = new Throttler({
-      minIntervalMs: config.minIntervalMs,
-      jitterMs: config.jitterMs,
-      maxRetries: config.maxRetries,
-      backoffBaseMs: config.backoffBaseMs,
-    });
-  }
+  constructor(private readonly http: PageHttp) {}
 
   /** Search drives by postal code or city, nearest first. */
   async findStores(query: string): Promise<FoundStore[]> {
@@ -113,22 +99,13 @@ export class StoreLocator {
     return res.json() as T;
   }
 
-  /** Throttled GET, run inside the real Chrome (via ChromeSession) so it passes DataDome. */
-  private send(url: string): Promise<import("../browser.js").PageResponse> {
-    return this.throttler.run(async () => {
-      let lastStatus = 0;
-      for (let attempt = 0; attempt <= this.throttler.maxRetries; attempt++) {
-        if (attempt > 0) await delay(this.throttler.backoff(attempt));
-        const res = await this.browser.fetch(LOCATOR_PAGE, url, {
-          headers: { Accept: "application/json" },
-        });
-        if (!RETRYABLE_STATUSES.has(res.status)) return res;
-        lastStatus = res.status;
-      }
-      throw new Error(
-        `Localisateur de magasins bloqué (HTTP ${lastStatus}). Vérifie que la fenêtre ` +
-          `Chrome du serveur est ouverte, puis réessaie.`,
-      );
+  /** Throttled, retried GET, run from a www.leclercdrive.fr page (see http.ts). */
+  private send(url: string): Promise<PageResponse> {
+    return this.http.request(() => LOCATOR_PAGE, url, {
+      headers: { Accept: "application/json" },
+      blockedMessage: (status) =>
+        `Localisateur de magasins bloqué (HTTP ${status}). Vérifie que la fenêtre Chrome du ` +
+        `serveur est ouverte, puis réessaie.`,
     });
   }
 }

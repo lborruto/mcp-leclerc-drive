@@ -13,8 +13,8 @@
  *    should be sanity-checked on first real run with a session cookie.
  */
 
-import { ChromeSession, PageResponse, PageTarget } from "../browser.js";
-import { LeclercConfig, storePath } from "../config.js";
+import { PageResponse, PageTarget } from "../browser.js";
+import { storePath } from "../config.js";
 import { isStoreHost } from "../hosts.js";
 import { StoreState } from "../store.js";
 import { Cart, CartItem, Product } from "../types.js";
@@ -30,10 +30,7 @@ import {
   round2,
   scanProductRecords,
 } from "./parse.js";
-import { delay, Throttler } from "./throttle.js";
-
-/** HTTP statuses that indicate a DataDome challenge / rate-limit worth retrying. */
-const RETRYABLE_STATUSES = new Set([403, 429]);
+import { PageHttp } from "./http.js";
 
 /** Cart mutation discriminator (see capture doc §2). */
 const ACTION_ADD = 1; // add / increase to target qty
@@ -44,20 +41,10 @@ const ACTION_SUB = 2; // decrease / remove (qty 0)
 const NO_MATCH_QUERY = "zzzznomatchzzz";
 
 export class LeclercClient {
-  private readonly throttler: Throttler;
-
   constructor(
-    private readonly config: LeclercConfig,
-    private readonly browser: ChromeSession,
+    private readonly http: PageHttp,
     private readonly store: StoreState,
-  ) {
-    this.throttler = new Throttler({
-      minIntervalMs: config.minIntervalMs,
-      jitterMs: config.jitterMs,
-      maxRetries: config.maxRetries,
-      backoffBaseMs: config.backoffBaseMs,
-    });
-  }
+  ) {}
 
   /**
    * The store page every search/cart fetch runs from. The request goes to the
@@ -88,36 +75,21 @@ export class LeclercClient {
     this.store.set({ ...s, host });
   }
 
-  /**
-   * Single choke point for every HTTP call: serialized + spaced out by the
-   * throttler, and retried with backoff. The request runs inside the real Chrome
-   * (via ChromeSession), so it carries the browser's cookies + fingerprint and
-   * passes DataDome. Do NOT set Cookie/User-Agent — the browser provides them.
-   */
+  /** Every store request: throttled, retried, run from the store page (see http.ts). */
   private send(
     method: "GET" | "POST",
     url: string,
-    extraHeaders: Record<string, string>,
+    headers: Record<string, string>,
     body?: string,
   ): Promise<PageResponse> {
-    return this.throttler.run(async () => {
-      let lastStatus = 0;
-      for (let attempt = 0; attempt <= this.throttler.maxRetries; attempt++) {
-        if (attempt > 0) await delay(this.throttler.backoff(attempt));
-        const res = await this.browser.fetch(this.storePage(), url, {
-          method,
-          headers: extraHeaders,
-          body,
-        });
-        this.adoptLandedHost(res.pageUrl);
-        if (!RETRYABLE_STATUSES.has(res.status)) return res;
-        lastStatus = res.status;
-      }
-      throw new Error(
-        `Bloqué par Leclerc Drive (HTTP ${lastStatus}) après ` +
-          `${this.throttler.maxRetries + 1} tentatives. Vérifie que tu es connecté à ` +
-          `Leclerc Drive dans la fenêtre Chrome ouverte par le serveur, puis réessaie.`,
-      );
+    return this.http.request(() => this.storePage(), url, {
+      method,
+      headers,
+      body,
+      onResponse: (res) => this.adoptLandedHost(res.pageUrl),
+      blockedMessage: (status) =>
+        `Bloqué par Leclerc Drive (HTTP ${status}) après plusieurs tentatives. Vérifie que tu ` +
+        `es connecté à Leclerc Drive dans la fenêtre Chrome ouverte par le serveur, puis réessaie.`,
     });
   }
 

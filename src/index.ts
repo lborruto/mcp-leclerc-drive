@@ -20,7 +20,9 @@ import { z } from "zod";
 import { ChromeSession } from "./browser.js";
 import { loadConfig } from "./config.js";
 import { LeclercClient } from "./leclerc/client.js";
+import { PageHttp } from "./leclerc/http.js";
 import { FoundStore, StoreLocator } from "./leclerc/locator.js";
+import { Throttler } from "./leclerc/throttle.js";
 import { StoreState } from "./store.js";
 import { Cart, Product } from "./types.js";
 
@@ -38,8 +40,18 @@ const browser = new ChromeSession({
   headless: config.headless,
 });
 const store = new StoreState(config);
-const client = new LeclercClient(config, browser, store);
-const locator = new StoreLocator(config, browser);
+// One queue for every request to Leclerc Drive, store and locator alike.
+const http = new PageHttp(
+  browser,
+  new Throttler({
+    minIntervalMs: config.minIntervalMs,
+    jitterMs: config.jitterMs,
+    maxRetries: config.maxRetries,
+    backoffBaseMs: config.backoffBaseMs,
+  }),
+);
+const client = new LeclercClient(http, store);
+const locator = new StoreLocator(http);
 
 // Cache of the last find_stores results, so set_store can resolve the host
 // (and noPR) from just a store id the user picked.
