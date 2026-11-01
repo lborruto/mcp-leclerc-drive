@@ -1,0 +1,7 @@
+# gitleaks configuration: the default rules, nothing allow-listed. The repository holds no test
+# secret and no fixture with a real-looking token; a finding is a finding. CI runs gitleaks over
+# the whole history (every branch) at each push.
+title = "mcp-leclerc-drive"
+
+[extend]
+useDefault = true

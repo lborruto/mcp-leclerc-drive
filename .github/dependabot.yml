@@ -1,0 +1,24 @@
+version: 2
+# Weekly, grouped, and only for releases at least 14 days old (cooldown), matching the rule for
+# pinned actions. The npm entry covers the two runtime dependencies and the two dev ones; a new
+# dependency is not added here, it is discussed first (CONTRIBUTING.md).
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 14
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 14
+    groups:
+      npm:
+        patterns: ["*"]

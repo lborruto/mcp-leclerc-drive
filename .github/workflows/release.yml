@@ -1,0 +1,148 @@
+name: Release
+
+# A tag vX.Y.Z runs CI on the tagged commit, builds the package and packs it with `npm pack`
+# (mcp-leclerc-drive-X.Y.Z.tgz), attests the tarball's build provenance, then creates the GitHub
+# release with that version's section of CHANGELOG.md as notes and the tarball attached. The
+# version in package.json must be the tag's. Nothing is published to npm: the package is private
+# and is installed from this repository or from the release tarball.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+# Tags queue rather than cancel one another: a cancelled run could leave an attestation without
+# its release.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Every action is pinned to the commit of a release at least two weeks old (resolved from its
+# tag on 2026-11-01); the comment names the release and the date it was published. Dependabot
+# updates the version but not the date; its 14-day cooldown keeps the age rule. No Actions cache
+# feeds the build: the released tarball is built from a clean install.
+jobs:
+  checks:
+    name: CI on the tagged commit
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  # The only job that runs code from npm (the dependencies, tsc), with a read-only token. It hands
+  # the tarball and the notes to the next jobs as an artifact.
+  build:
+    name: Build and pack
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0 (2026-10-08)
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: package.json version is the tag's
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::package.json says $version but the tag is $TAG; bump the version before tagging"
+            exit 1
+          fi
+      # The notes are the `## [X.Y.Z]` section of CHANGELOG.md (Keep a Changelog); a tag without
+      # its section fails here, before anything is built, so the changelog is written before the
+      # tag.
+      - name: Notes from CHANGELOG.md
+        run: |
+          version="${TAG#v}"
+          out="$RUNNER_TEMP/release"
+          mkdir -p "$out"
+          awk -v heading="## [$version]" '
+            index($0, heading) == 1 { found = 1; next }
+            /^## / { found = 0 }
+            found
+          ' CHANGELOG.md >"$out/notes.md"
+          if ! grep -q '[^[:space:]]' "$out/notes.md"; then
+            echo "::error::CHANGELOG.md has no '## [$version]' section; add it before tagging v$version"
+            exit 1
+          fi
+          cat "$out/notes.md"
+      # No dependency runs an install script; none is allowed to.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build
+      # Only dist/ (each file with its src/ file), package.json, README.md and LICENSE go in.
+      - run: node scripts/check-pack.mjs
+      - name: Pack
+        run: |
+          version="${TAG#v}"
+          tarball="mcp-leclerc-drive-${version}.tgz"
+          out="$RUNNER_TEMP/release"
+          npm pack --ignore-scripts --pack-destination "$out"
+          test -f "$out/$tarball"
+          cd "$out"
+          sha256sum "$tarball" | tee "$tarball.sha256"
+          {
+            echo
+            echo "---"
+            echo
+            echo "Attached: \`$tarball\` (SHA-256 \`$(cut -d' ' -f1 "$tarball.sha256")\`). Its build"
+            echo "provenance can be checked with"
+            echo "\`gh attestation verify $tarball --repo $GITHUB_REPOSITORY\`."
+          } >>notes.md
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (2026-10-07)
+        with:
+          name: release
+          path: ${{ runner.temp }}/release/
+          if-no-files-found: error
+          retention-days: 5
+
+  # A signed build-provenance attestation of the tarball (Sigstore, stored by GitHub): who built
+  # it, from which commit and workflow. The OIDC token exists only in this job, which runs no
+  # code from the repository or from npm.
+  attest:
+    name: Build provenance
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (2026-10-07)
+        with:
+          name: release
+          path: release
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2 (2026-08-06)
+        with:
+          subject-path: release/mcp-leclerc-drive-*.tgz
+
+  release:
+    name: GitHub release
+    needs: [build, attest]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (2026-10-07)
+        with:
+          name: release
+          path: release
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          set --
+          case "$TAG" in *-*) set -- --prerelease ;; esac
+          gh release create "$TAG" "release/mcp-leclerc-drive-${version}.tgz" \
+            --verify-tag --title "$TAG" --notes-file release/notes.md "$@"
