@@ -21,11 +21,25 @@ import { spawn } from "node:child_process";
 import { platform } from "node:os";
 
 export interface PageResponse {
+  /** URL of the page the fetch ran from (where navigation actually landed). */
+  pageUrl: string;
   status: number;
   ok: boolean;
   statusText: string;
   text(): string;
   json(): unknown;
+}
+
+/**
+ * The page a fetch must run from. `accept` decides whether the page the tab is
+ * already on (or has just landed on, after redirects) will do; by default, any
+ * page on `url`'s origin.
+ */
+export interface PageTarget {
+  url: string;
+  accept?: (landed: URL) => boolean;
+  /** Appended to the error when the tab lands somewhere `accept` refuses. */
+  mismatchHint?: string;
 }
 
 export interface ChromeOptions {
@@ -37,6 +51,8 @@ export interface ChromeOptions {
   port: number;
   /** Headless is detectable by DataDome — default false (a window opens). */
   headless: boolean;
+  /** Pause after each navigation so DataDome's JS challenge can resolve, in ms. */
+  settleMs?: number;
 }
 
 const DEFAULT_CHROME: Record<string, string> = {
@@ -59,12 +75,21 @@ async function tryJson(url: string, method = "GET"): Promise<Any> {
   }
 }
 
+function parseUrl(u: string): URL | null {
+  try {
+    return new URL(u);
+  } catch {
+    return null;
+  }
+}
+
 export class ChromeSession {
   private ws?: Any;
   private msgId = 0;
   private readonly pending = new Map<number, (m: Any) => void>();
   private eventWaiters: Array<{ method: string; res: () => void }> = [];
-  private currentUrl = "";
+  /** Where the tab actually is, read from the page after each navigation. */
+  private landedUrl = "";
   private launching?: Promise<void>;
 
   constructor(private readonly opts: ChromeOptions) {}
@@ -142,7 +167,7 @@ export class ChromeSession {
     };
     this.ws = ws;
     await this.cdp("Page.enable");
-    this.currentUrl = page.url || "";
+    this.landedUrl = page.url || "";
   }
 
   private cdp(method: string, params: Any = {}): Promise<Any> {
@@ -164,38 +189,62 @@ export class ChromeSession {
     });
   }
 
-  /** Navigate the page to `baseUrl`'s origin if it isn't already there. */
-  private async ensurePage(baseUrl: string): Promise<void> {
-    const target = new URL(baseUrl).origin;
-    let current = "";
-    try {
-      current = new URL(this.currentUrl).origin;
-    } catch {
-      /* about:blank etc. */
-    }
-    if (current === target) return;
+  /**
+   * Make sure the tab sits on a page `target` accepts, navigating to
+   * `target.url` if needed. The page's real URL is read back after the
+   * navigation: hosts may redirect (e.g. a generic fd1-courses host 302s to the
+   * store's own shard), and fetches must stay same-origin with where the page
+   * landed, not with where it was sent.
+   */
+  private async ensurePage(target: PageTarget): Promise<URL> {
+    const targetOrigin = new URL(target.url).origin;
+    const accept = target.accept ?? ((landed: URL) => landed.origin === targetOrigin);
+    const current = parseUrl(this.landedUrl);
+    if (current && accept(current)) return current;
+
     const loaded = this.waitEvent("Page.loadEventFired");
-    await this.cdp("Page.navigate", { url: baseUrl });
+    await this.cdp("Page.navigate", { url: target.url });
     await loaded;
-    await delay(1800); // let the DataDome JS challenge resolve
-    this.currentUrl = baseUrl;
+    await delay(this.opts.settleMs ?? 1800); // let the DataDome JS challenge resolve
+    this.landedUrl = await this.locationHref();
+
+    const landed = parseUrl(this.landedUrl);
+    if (!landed || !accept(landed)) {
+      throw new Error(
+        `La page Leclerc Drive a atterri sur ${landed ? landed.origin + landed.pathname : "une page vide"} ` +
+          `au lieu de ${target.url}.` +
+          (target.mismatchHint ? ` ${target.mismatchHint}` : ""),
+      );
+    }
+    return landed;
+  }
+
+  /** The tab's real URL, as the page itself reports it. */
+  private async locationHref(): Promise<string> {
+    const r = await this.cdp("Runtime.evaluate", {
+      expression: "location.href",
+      returnByValue: true,
+    });
+    return String(r.result?.result?.value ?? "");
   }
 
   /**
-   * Run `fetch(url, opts)` inside a page on `baseUrl`'s origin. The page's
-   * cookies, UA and solved DataDome challenge apply automatically, so do NOT
-   * set Cookie/User-Agent in `opts.headers`.
+   * Run `fetch(url, opts)` inside a page `page` accepts. `url` may be relative:
+   * it is resolved against the page the tab actually landed on, so a redirect to
+   * another shard keeps requests same-origin. The page's cookies, UA and solved
+   * DataDome challenge apply automatically, so do NOT set Cookie/User-Agent in
+   * `opts.headers`.
    */
   async fetch(
-    baseUrl: string,
+    page: PageTarget,
     url: string,
     opts: { method?: string; headers?: Record<string, string>; body?: string } = {},
   ): Promise<PageResponse> {
     await this.ensureLaunched();
-    await this.ensurePage(baseUrl);
+    const landed = await this.ensurePage(page);
 
     const args = {
-      url,
+      url: new URL(url, landed).href,
       init: {
         method: opts.method || "GET",
         headers: opts.headers || {},
@@ -223,6 +272,7 @@ export class ChromeSession {
       throw new Error(`Requête via le navigateur échouée: ${detail}`);
     }
     return {
+      pageUrl: landed.href,
       status: v.status,
       ok: v.ok,
       statusText: v.statusText,

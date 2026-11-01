@@ -20,7 +20,7 @@ import { delay, Throttler } from "./throttle.js";
 const API_BASE =
   "https://api-recherchemagasins.leclercdrive.fr/API_RechercheMagasins/api/v1";
 /** Page origin the locator fetches run from (CORS-allowed for the locator API). */
-const LOCATOR_BASE = "https://www.leclercdrive.fr/";
+const LOCATOR_PAGE = { url: "https://www.leclercdrive.fr/" };
 const RETRYABLE_STATUSES = new Set([403, 429]);
 
 export interface FoundStore {
@@ -119,7 +119,7 @@ export class StoreLocator {
       let lastStatus = 0;
       for (let attempt = 0; attempt <= this.throttler.maxRetries; attempt++) {
         if (attempt > 0) await delay(this.throttler.backoff(attempt));
-        const res = await this.browser.fetch(LOCATOR_BASE, url, {
+        const res = await this.browser.fetch(LOCATOR_PAGE, url, {
           headers: { Accept: "application/json" },
         });
         if (!RETRYABLE_STATUSES.has(res.status)) return res;

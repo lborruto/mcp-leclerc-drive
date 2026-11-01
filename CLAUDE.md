@@ -56,7 +56,7 @@ API reference: `docs/api-capture.md`.
 | # | Task | Status |
 | --- | --- | --- |
 | 0 | Setup: read the code, this file, clean `dist/` before each build | ✅ |
-| 1 | Issue #1: remember where the page landed, build URLs on the real origin, persist the corrected host | ⏳ |
+| 1 | Issue #1: remember where the page landed, build URLs on the real origin, persist the corrected host | ✅ |
 | 2 | Issue #2: on "Failed to fetch", re-navigate to the store and retry once (keep the 403/429 retry) | ⏳ |
 | 3 | Hardening: port 9333, PID+port lock in the profile, host allowlist (navigation, fetch, set_store, LECLERC_HOST), refuse the main Chrome profile | ⏳ |
 | 4 | `add_many` tool: sequential, throttled, carries on after a failure, per-item result + final cart | ⏳ |

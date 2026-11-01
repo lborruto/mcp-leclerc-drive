@@ -9,7 +9,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { LeclercConfig } from "./config.js";
 
@@ -24,19 +24,21 @@ export interface StoreSelection {
   name?: string;
 }
 
-const CONFIG_DIR = join(homedir(), ".mcp-leclerc-drive");
-const CONFIG_FILE = join(CONFIG_DIR, "config.json");
+const CONFIG_FILE = join(homedir(), ".mcp-leclerc-drive", "config.json");
 
 export class StoreState {
   private selection: StoreSelection;
 
-  constructor(config: LeclercConfig) {
+  constructor(
+    config: LeclercConfig,
+    private readonly file: string = CONFIG_FILE,
+  ) {
     const fallback: StoreSelection = {
       storeId: config.storeId,
       noPR: config.storeId,
       host: config.host,
     };
-    this.selection = readPersisted() ?? fallback;
+    this.selection = readPersisted(file) ?? fallback;
   }
 
   current(): StoreSelection {
@@ -45,19 +47,19 @@ export class StoreState {
 
   set(selection: StoreSelection): void {
     this.selection = selection;
-    writePersisted(selection);
+    writePersisted(this.file, selection);
   }
 
   /** Path of the persisted config file, for user-facing messages. */
   get configPath(): string {
-    return CONFIG_FILE;
+    return this.file;
   }
 }
 
-function readPersisted(): StoreSelection | null {
+function readPersisted(file: string): StoreSelection | null {
   try {
-    if (!existsSync(CONFIG_FILE)) return null;
-    const o = JSON.parse(readFileSync(CONFIG_FILE, "utf8"));
+    if (!existsSync(file)) return null;
+    const o = JSON.parse(readFileSync(file, "utf8"));
     if (o && typeof o.storeId === "string" && typeof o.host === "string") {
       return {
         storeId: o.storeId,
@@ -72,7 +74,7 @@ function readPersisted(): StoreSelection | null {
   return null;
 }
 
-function writePersisted(selection: StoreSelection): void {
-  mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(CONFIG_FILE, JSON.stringify(selection, null, 2) + "\n", "utf8");
+function writePersisted(file: string, selection: StoreSelection): void {
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify(selection, null, 2) + "\n", "utf8");
 }

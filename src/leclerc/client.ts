@@ -13,8 +13,9 @@
  *    should be sanity-checked on first real run with a session cookie.
  */
 
-import { ChromeSession, PageResponse } from "../browser.js";
+import { ChromeSession, PageResponse, PageTarget } from "../browser.js";
 import { LeclercConfig, storePath } from "../config.js";
+import { isStoreHost } from "../hosts.js";
 import { StoreState } from "../store.js";
 import { Cart, CartItem, Product } from "../types.js";
 import {
@@ -58,10 +59,33 @@ export class LeclercClient {
     });
   }
 
-  /** Store page the browser sits on; all search/cart fetches are same-origin to it. */
-  private storeBase(): string {
+  /**
+   * The store page every search/cart fetch runs from. The request goes to the
+   * selected host, which may redirect to the store's real shard; any page of
+   * this store on a store host will do, whatever the cosmetic slug.
+   */
+  private storePage(): PageTarget {
     const s = this.store.current();
-    return `${this.origin()}/${storePath(s.storeId, s.noPR)}/recherche.aspx?TexteRecherche=`;
+    const prefix = `/magasin-${s.storeId}-`;
+    return {
+      url: `https://${s.host}/${storePath(s.storeId, s.noPR)}/recherche.aspx?TexteRecherche=`,
+      accept: (landed) => isStoreHost(landed.host) && landed.pathname.startsWith(prefix),
+      mismatchHint:
+        "Ouvre la fenêtre Chrome du serveur, vérifie que tu es connecté à Leclerc Drive sur ce " +
+        "magasin, puis réessaie.",
+    };
+  }
+
+  /**
+   * Remember the host the store page really lives on, so later sessions go
+   * straight there instead of through a redirect (issue #1).
+   */
+  private adoptLandedHost(pageUrl: string): void {
+    const host = new URL(pageUrl).host;
+    const s = this.store.current();
+    if (host === s.host || !isStoreHost(host)) return;
+    console.error(`mcp-leclerc-drive: magasin ${s.storeId} servi par ${host} (au lieu de ${s.host}), mémorisé.`);
+    this.store.set({ ...s, host });
   }
 
   /**
@@ -80,11 +104,12 @@ export class LeclercClient {
       let lastStatus = 0;
       for (let attempt = 0; attempt <= this.throttler.maxRetries; attempt++) {
         if (attempt > 0) await delay(this.throttler.backoff(attempt));
-        const res = await this.browser.fetch(this.storeBase(), url, {
+        const res = await this.browser.fetch(this.storePage(), url, {
           method,
           headers: extraHeaders,
           body,
         });
+        this.adoptLandedHost(res.pageUrl);
         if (!RETRYABLE_STATUSES.has(res.status)) return res;
         lastStatus = res.status;
       }
@@ -96,22 +121,16 @@ export class LeclercClient {
     });
   }
 
-  private origin(): string {
-    return `https://${this.store.current().host}`;
-  }
+  // URLs are relative to the store page: they follow the shard it landed on.
 
-  /** API path (no cosmetic slug). */
   private cartUrl(): string {
     const s = this.store.current();
-    return `${this.origin()}/${storePath(s.storeId, s.noPR)}/panier.aspx?op=1`;
+    return `/${storePath(s.storeId, s.noPR)}/panier.aspx?op=1`;
   }
 
   private searchUrl(query: string): string {
     const s = this.store.current();
-    return `${this.origin()}/${storePath(
-      s.storeId,
-      s.noPR,
-    )}/recherche.aspx?TexteRecherche=${encodeURIComponent(query)}`;
+    return `/${storePath(s.storeId, s.noPR)}/recherche.aspx?TexteRecherche=${encodeURIComponent(query)}`;
   }
 
   // ---- Search ------------------------------------------------------------
