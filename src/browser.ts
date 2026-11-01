@@ -229,6 +229,13 @@ export class ChromeSession {
         rej(new BlockingError("Connexion CDP échouée."));
       };
     });
+    this.attach(ws);
+    await this.cdp("Page.enable");
+    this.landedUrl = page.url || "";
+  }
+
+  /** Route a connected CDP socket's messages, and fail everything in flight if it drops. */
+  private attach(ws: Any): void {
     ws.onmessage = (e: Any) => {
       const m = JSON.parse(String(e.data));
       const waiter = m.id ? this.pending.get(m.id) : undefined;
@@ -259,8 +266,6 @@ export class ChromeSession {
       this.pending.clear();
     };
     this.ws = ws;
-    await this.cdp("Page.enable");
-    this.landedUrl = page.url || "";
   }
 
   /** Send one CDP command; rejects on a CDP error, a lost connection or a timeout. */
