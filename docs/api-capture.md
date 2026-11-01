@@ -30,15 +30,16 @@ incl. DataDome, replayed).
   403** with a DataDome challenge; replaying the browser cookies (incl.
   `datadome`) returns the real **HTTP 200** page. This is the main fragility of
   the cookie-replay approach.
-- The MCP reads these cookies straight from the local Chrome profile
-  (`chrome-cookies-secure`), so no manual copy-paste is needed — see
-  `src/auth/cookies.ts`.
+- [v0.1–0.2, removed] Those versions read the cookies from the local Chrome
+  profile. Since v0.3 no cookie is read, stored or logged: the requests run in
+  the browser, which attaches its own.
 - ⚠️ **Bursts get struck.** Observed live: firing ~5 cart mutations in parallel
   immediately triggered DataDome — both writes *and* subsequent reads returned
   403 for that client, while the real browser session stayed fine. Recovery:
   refresh Leclerc Drive in Chrome (re-issues a valid `datadome` cookie). The
-  client now serializes + spaces out + retries all requests to avoid this — see
-  `src/leclerc/throttle.ts`. Keep a human-like cadence; don't parallelize.
+  client now serializes + spaces out + retries all requests (store and locator
+  share one queue) to avoid this — see `src/leclerc/throttle.ts` and
+  `src/leclerc/http.ts`. Keep a human-like cadence; don't parallelize.
 - Mutating requests send header `X-Requested-With: XMLHttpRequest` and
   `Content-Type: application/x-www-form-urlencoded; charset=UTF-8`.
 
@@ -155,6 +156,26 @@ the drive the Chrome session is currently logged into. `set_store` to a store th
 browser isn't on yields a "session expirée" page. Replaying Leclerc's
 "switch drive" call to rebind the session server-side is an open item (would let
 set_store switch to any drive) — see below.
+
+## 5. Hosts and redirects (v0.4)
+
+- **Generic hosts redirect.** The locator can report `fd1-courses` for a store
+  served by `fd10-courses`; a navigation 302s there (slug added). An in-page
+  fetch to fd1 is then cross-origin and fails with `TypeError: Failed to fetch`
+  ([upstream #1](https://github.com/skunkobi/mcp-leclerc-drive/issues/1)). The
+  client reads `location.href` after each navigation, sends page-relative URLs
+  and persists the shard it landed on.
+- **Idle redirect to fdN-secure.** After ~16 min without a call, the store host
+  may answer with a redirect to its `fdN-secure` twin, which an in-page fetch
+  cannot follow
+  ([upstream #2](https://github.com/skunkobi/mcp-leclerc-drive/issues/2)). A
+  top-level navigation follows it and restores the session: the client
+  re-navigates and retries once.
+- Hosts seen: `fdN-courses` (shopping), `fdN-secure` (session),
+  `www.leclercdrive.fr` (home, locator page origin),
+  `api-recherchemagasins.leclercdrive.fr` (locator API), `fdN-photos` (product
+  images, loaded by the page itself, never fetched by the server). The server's
+  allowlist is `src/hosts.ts`.
 
 ## Open items / to refine
 

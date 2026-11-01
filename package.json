@@ -2,8 +2,7 @@
   "name": "mcp-leclerc-drive",
   "version": "0.3.0",
   "private": true,
-  "mcpName": "io.github.skunkobi/leclerc-drive",
-  "description": "MCP server for E.Leclerc Drive — search products, manage cart, and order groceries from Claude",
+  "description": "Unofficial MCP server for E.Leclerc Drive: find your drive, search products and fill your cart from Claude, through your own Chrome. Nothing past the cart.",
   "type": "module",
   "bin": {
     "mcp-leclerc-drive": "dist/index.js"
@@ -21,7 +20,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "test": "npm run build && npm run clean:test && tsc -p tsconfig.test.json && node --test \"build-test/test/**/*.test.js\"",
     "clean:test": "node -e \"require('node:fs').rmSync('build-test',{recursive:true,force:true})\"",
-    "check:hosts": "node scripts/check-hosts.mjs"
+    "check:hosts": "node scripts/check-hosts.mjs",
+    "prepare": "npm run build"
   },
   "keywords": [
     "mcp",
@@ -47,5 +47,9 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0"
+  },
+  "homepage": "https://github.com/lborruto/mcp-leclerc-drive#readme",
+  "bugs": {
+    "url": "https://github.com/lborruto/mcp-leclerc-drive/issues"
   }
 }
