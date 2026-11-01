@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { formatAddMany, formatCart, formatChange } from "../src/format.js";
+import { formatAddMany, formatCart, formatChange, formatSearch } from "../src/format.js";
 import { changeFromEvents } from "../src/leclerc/client.js";
 import { fakeChrome } from "./fake-chrome.js";
 import { makeClient, storePage, tempStore, testConfig } from "./helpers.js";
@@ -196,4 +196,17 @@ test("formatCart shows lines, products, units and the total", () => {
   assert.match(text, /2 produit\(s\), 3 article\(s\)/);
   assert.match(text, /• 2× Pain — 2,00 € \(id=22\)/);
   assert.match(text, /Total : 3,10 €$/);
+});
+
+test("formatSearch: available first, limited, with what was left out", () => {
+  const p = (id: string, available: boolean) => ({ id, label: `P${id}`, price: 1, available });
+  const products = [p("1", false), p("2", true), p("3", true), p("4", false)];
+  const text = formatSearch("x", products, { limit: 2, onlyAvailable: false });
+  assert.match(text, /^4 produit\(s\) pour « x », les 2 premiers :/);
+  assert.deepEqual([...text.matchAll(/id=(\d)/g)].map((m) => m[1]), ["2", "3"]);
+  assert.match(text, /… 2 autre\(s\)/);
+  const only = formatSearch("x", products, { limit: 20, onlyAvailable: true });
+  assert.deepEqual([...only.matchAll(/id=(\d)/g)].map((m) => m[1]), ["2", "3"]);
+  assert.match(formatSearch("x", [p("1", false)], { limit: 5, onlyAvailable: true }), /Aucun produit disponible.*1 indisponible/);
+  assert.match(formatSearch("x", [], { limit: 5, onlyAvailable: false }), /Aucun produit trouvé/);
 });

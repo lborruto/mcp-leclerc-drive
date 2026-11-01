@@ -229,6 +229,13 @@ export class ChromeSession {
         rej(new BlockingError("Connexion CDP échouée."));
       };
     });
+    this.attach(ws);
+    await this.cdp("Page.enable");
+    this.landedUrl = page.url || "";
+  }
+
+  /** Route a connected CDP socket's messages, and fail everything in flight if it drops. */
+  private attach(ws: Any): void {
     ws.onmessage = (e: Any) => {
       const m = JSON.parse(String(e.data));
       const waiter = m.id ? this.pending.get(m.id) : undefined;
@@ -259,8 +266,6 @@ export class ChromeSession {
       this.pending.clear();
     };
     this.ws = ws;
-    await this.cdp("Page.enable");
-    this.landedUrl = page.url || "";
   }
 
   /** Send one CDP command; rejects on a CDP error, a lost connection or a timeout. */
@@ -421,6 +426,26 @@ export class ChromeSession {
       text: () => v.body,
       json: () => JSON.parse(v.body),
     };
+  }
+
+  /**
+   * Where Chrome stands, for the user, without starting it or touching the
+   * network beyond 127.0.0.1: connected, open and ours, someone else's, or
+   * not started yet.
+   */
+  async status(): Promise<string> {
+    const { port, profileDir } = this.opts;
+    if (this.ws && this.ws.readyState === 1) {
+      return `Chrome : connecté (127.0.0.1:${port}, profil ${profileDir}).`;
+    }
+    const version = await tryJson(`http://127.0.0.1:${port}/json/version`);
+    if (!version) {
+      return `Chrome : pas ouvert. Il s'ouvrira à la prochaine recherche (profil ${profileDir}).`;
+    }
+    const reason = foreignChromeReason(profileDir, port, devtoolsPath(version.webSocketDebuggerUrl, "browser"));
+    return reason
+      ? `Chrome : le port ${port} est pris par un autre programme (${reason}) ; le serveur ne s'y connectera pas.`
+      : `Chrome : ouvert par le serveur (127.0.0.1:${port}), connexion à la prochaine requête.`;
   }
 
   /** Close this session's tab and connection; Chrome and its login stay. */

@@ -11,18 +11,18 @@
 </p>
 
 ```text
-You     Ajoute à mon panier : 2 packs de lait demi-écrémé, du beurre doux et des petits pois surgelés.
+You     J'ai besoin de beurre doux et d'un pack d'eau gazeuse.
 
-Claude  ▸ search_product « lait demi-écrémé »   ▸ search_product « beurre doux »   ▸ search_product « petits pois »
-        ▸ add_many (3 produits)
-
-        3/3 ajout(s) réussi(s) :
-        ✓ Lait demi-écrémé UHT Délisse Brique - 6x1L (id=2612) +2 → 2 au panier
-        ✓ Beurre Extra fin Les Croisés Doux - 82% MG - 250g (id=2111) +1 → 1 au panier
-        ✓ Petits Pois Notre Jardin 600g (id=87001) +1 → 1 au panier
-
-        Panier (magasin 027411) — 3 produit(s), 4 article(s) — Total : 15,98 €
+Claude  ▸ search_product « beurre doux »
+        Beurre Extra fin Les Croisés Doux - 82 % MG - 125g — 1,49 € [11,92 € / kg] · 0,125 kg · Cremerie · 4/5 (15 avis) id=29856
+        Beurre Extra fin Les Croisés Doux - 82% MG - 250g — 2,35 € [9,40 € / kg] · 0,25 kg · Cremerie · 4/5 (87 avis) id=2111
+        Beurre Tendre Les Croisés Doux - 82% MG - 250g — 2,51 € [10,04 € / kg] · 0,25 kg · Cremerie · 3,5/5 (62 avis) id=983
+        …
+        ▸ add_to_cart 28099 ×2
+        Ajouté — Eau minérale gazeuse St Diery Naturelle - 6x1,25L (id=28099) : 2 au panier, 4,32 €.
 ```
+
+<sub>Tool output from a live test on 1 November 2026 (store and prices of that day).</sub>
 
 ## What it does
 
@@ -112,8 +112,6 @@ le beurre ». Then open the cart on leclercdrive.fr and check out yourself.
 }
 ```
 
-Run one MCP client with it at a time: they would share the same Chrome window.
-
 ## Tools
 
 | Tool | What it does |
@@ -140,6 +138,21 @@ NAME=value …`):
 | `LECLERC_STORE_ID`, `LECLERC_HOST` | none | A drive to start with, instead of `set_store`. |
 
 Throttling and retries have their own settings; see [CONTRIBUTING.md](CONTRIBUTING.md#configuration).
+
+## Good to know
+
+- **One drive at a time.** Your Leclerc session is tied to the drive chosen on the site. To shop
+  at another drive, choose it in the Chrome window too, then `set_store` it; otherwise Leclerc
+  answers with an expired-session page.
+- **Blocked or logged out?** If a tool says Leclerc Drive blocked it or the session expired,
+  reload the page in the server's Chrome window (log in again if asked) and retry. Keep the pace
+  of a person: one shopping list at a time.
+- **Quantities are checked by Leclerc.** If a product is short or limited, the tool says how
+  many went into the cart. Prices are the site's at the time of the search.
+- **Relays have their own id.** `find_stores` lists truck and pedestrian relays as
+  `027411-027499`: they share their drive's number.
+- **Shop from one Claude session at a time.** Several sessions share the same Chrome and login,
+  each in its own tab, but each paces only its own requests.
 
 ## Upgrading
 

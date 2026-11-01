@@ -1,13 +1,15 @@
 name: CI
 
-# Every push and pull request: typecheck, build and unit tests on Linux, macOS and Windows, the
+# Every pull request and every push to main: typecheck, build and unit tests on Linux, macOS and Windows, the
 # network allowlist check on src/ and dist/, the contents of the release tarball, npm audit on the
 # runtime dependencies, a secret scan of the whole history and actionlint on the workflows.
 # CodeQL runs from codeql.yml. Tags are not pushes here: release.yml calls this workflow on the
 # tagged commit.
+# A branch is checked through its pull request only, so each change runs once, not once for the
+# push and again for the pull request.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_call:
 

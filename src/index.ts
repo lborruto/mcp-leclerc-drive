@@ -17,7 +17,7 @@ import { z } from "zod";
 
 import { ChromeSession } from "./browser.js";
 import { loadConfig } from "./config.js";
-import { formatAddMany, formatCart, formatChange, formatProduct, formatStores } from "./format.js";
+import { formatAddMany, formatCart, formatChange, formatSearch, formatStores } from "./format.js";
 import { parseStoreHost } from "./hosts.js";
 import { LeclercClient } from "./leclerc/client.js";
 import { PageHttp } from "./leclerc/http.js";
@@ -27,6 +27,9 @@ import { StoreState } from "./store.js";
 
 /** Most products add_many takes in one call: a weekly shop, not a bulk loop. */
 export const ADD_MANY_MAX_ITEMS = 30;
+/** Products a search shows by default, and at most: the site returns up to ~200. */
+const SEARCH_DEFAULT_RESULTS = 20;
+const SEARCH_MAX_RESULTS = 60;
 /** Most units of one product per call. */
 const MAX_QUANTITY = 99;
 
@@ -102,18 +105,23 @@ server.registerTool(
     title: "Rechercher des produits",
     description:
       "Recherche des produits dans le catalogue Leclerc Drive du magasin sélectionné. Retourne " +
-      "libellé, prix, prix au kilo/litre, disponibilité et l'id à utiliser pour add_to_cart.",
+      "libellé, prix, prix au kilo/litre, format, famille, avis, offres, disponibilité, quantité " +
+      "déjà au panier et l'id à utiliser pour add_to_cart. Les produits disponibles d'abord.",
     inputSchema: {
       query: z.string().trim().min(1).max(100).describe("Termes de recherche, ex. 'lait demi-écrémé bio'"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(SEARCH_MAX_RESULTS)
+        .default(SEARCH_DEFAULT_RESULTS)
+        .describe(`Nombre de produits à afficher (${SEARCH_DEFAULT_RESULTS} par défaut)`),
+      only_available: z.boolean().default(false).describe("N'afficher que les produits disponibles"),
     },
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
-  ({ query }) =>
-    run(async () => {
-      const products = await client.searchProducts(query);
-      if (products.length === 0) return `Aucun produit trouvé pour « ${query} ».`;
-      return products.map(formatProduct).join("\n");
-    }),
+  ({ query, limit, only_available }) =>
+    run(async () => formatSearch(query, await client.searchProducts(query), { limit, onlyAvailable: only_available })),
 );
 
 server.registerTool(
@@ -268,13 +276,13 @@ server.registerTool(
   "get_store",
   {
     title: "Magasin actif",
-    description: "Affiche le magasin actuellement sélectionné (id, hôte).",
+    description: "Affiche le magasin sélectionné (id, hôte) et l'état de la fenêtre Chrome du serveur.",
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   () =>
     run(async () => {
       const s = store.current();
-      return `Magasin actif : ${s.name ?? s.storeId} (id=${s.storeId} @ ${s.host}).`;
+      return `Magasin actif : ${s.name ?? s.storeId} (id=${s.storeId} @ ${s.host}).\n${await browser.status()}`;
     }),
 );
 

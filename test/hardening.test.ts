@@ -203,6 +203,7 @@ test("a debug endpoint already on the port, not started by the server, is refuse
   const port = (server.address() as AddressInfo).port;
   try {
     const session = new ChromeSession({ profileDir: profile(), port, headless: true });
+    assert.match(await session.status(), /pris par un autre programme/);
     await assert.rejects(session.fetch({ url: "https://www.leclercdrive.fr/" }, "/"), /ne s'y connecte pas/);
     assert.equal(listCalls, 0, "never listed its tabs");
   } finally {
