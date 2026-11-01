@@ -11,18 +11,18 @@
 </p>
 
 ```text
-You     Ajoute à mon panier : 2 packs de lait demi-écrémé, du beurre doux et des petits pois surgelés.
+You     J'ai besoin de beurre doux et d'un pack d'eau gazeuse.
 
-Claude  ▸ search_product « lait demi-écrémé »   ▸ search_product « beurre doux »   ▸ search_product « petits pois »
-        ▸ add_many (3 produits)
-
-        3/3 ajout(s) réussi(s) :
-        ✓ Lait demi-écrémé UHT Délisse Brique - 6x1L (id=2612) +2 → 2 au panier
-        ✓ Beurre Extra fin Les Croisés Doux - 82% MG - 250g (id=2111) +1 → 1 au panier
-        ✓ Petits Pois Notre Jardin 600g (id=87001) +1 → 1 au panier
-
-        Panier (magasin 027411) — 3 produit(s), 4 article(s) — Total : 15,98 €
+Claude  ▸ search_product « beurre doux »
+        Beurre Extra fin Les Croisés Doux - 82 % MG - 125g — 1,49 € [11,92 € / kg] · 0,125 kg · Cremerie · 4/5 (15 avis) id=29856
+        Beurre Extra fin Les Croisés Doux - 82% MG - 250g — 2,35 € [9,40 € / kg] · 0,25 kg · Cremerie · 4/5 (87 avis) id=2111
+        Beurre Tendre Les Croisés Doux - 82% MG - 250g — 2,51 € [10,04 € / kg] · 0,25 kg · Cremerie · 3,5/5 (62 avis) id=983
+        …
+        ▸ add_to_cart 28099 ×2
+        Ajouté — Eau minérale gazeuse St Diery Naturelle - 6x1,25L (id=28099) : 2 au panier, 4,32 €.
 ```
+
+<sub>Tool output from a live test on 1 November 2026 (store and prices of that day).</sub>
 
 ## What it does
 

@@ -148,6 +148,25 @@ issue.
 - **`src/leclerc/http.ts`**: the one way requests leave: shared throttle, 403/429 backoff, one
   re-navigation on "Failed to fetch" or a tab found elsewhere.
 
+## Why no Docker image
+
+Asked, and declined for now. The server starts and drives a Chrome on your machine, and that is
+the part a container cannot do well:
+
+- From a container, the server cannot start your Chrome; you would start it by hand with the
+  right flags first.
+- Chrome's debug port listens on the host's 127.0.0.1 only, and Chrome refuses DevTools requests
+  addressed by a host name such as `host.docker.internal`. Reaching it from a container means
+  opening the port beyond loopback: the exposure the port and lock checks exist to avoid.
+- The ownership checks (Chrome's PID alive, the lock in the profile) and the main-profile guard
+  read the host's processes and files.
+- Chrome inside the image instead (with a virtual display and a web viewer to log in) is a large
+  image, another login surface, and on Apple Silicon a different browser than Google Chrome,
+  which DataDome may treat differently.
+
+The install is one `claude mcp add … npx --package=<release tarball>` line already. A headless
+server variant could be revisited if someone needs it and can test it against DataDome.
+
 ## Releasing
 
 1. Bump `version` in `package.json` (and `npm install --package-lock-only` so the lock file
