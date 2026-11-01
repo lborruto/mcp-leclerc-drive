@@ -278,8 +278,21 @@ server.registerTool(
     }),
 );
 
+/** Close the server's tab when the MCP client goes away; Chrome and its login stay. */
+let closing = false;
+async function shutdown() {
+  if (closing) return;
+  closing = true;
+  await browser.close().catch(() => undefined);
+  process.exit(0);
+}
+
 async function main() {
   const transport = new StdioServerTransport();
+  transport.onclose = () => void shutdown();
+  process.stdin.on("end", () => void shutdown());
+  process.on("SIGINT", () => void shutdown());
+  process.on("SIGTERM", () => void shutdown());
   await server.connect(transport);
   const s = store.current();
   // stderr only — stdout is the MCP channel.

@@ -19,6 +19,9 @@ const STORE_HOST = /^fd\d+-courses\.leclercdrive\.fr$/;
 /** Store ids (noPL / noPR) are digit strings, e.g. "053701". */
 const STORE_ID = /^\d{1,10}$/;
 
+/** The allowlist as regex sources, for the check that runs inside the page. */
+export const ALLOWED_HOST_SOURCES: string[] = ALLOWED_HOSTS.map((re) => re.source);
+
 export function isAllowedHost(host: string): boolean {
   return ALLOWED_HOSTS.some((re) => re.test(host));
 }

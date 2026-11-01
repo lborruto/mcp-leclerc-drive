@@ -69,6 +69,27 @@ test("the browser refuses to fetch or navigate outside the allowlist", async () 
   assert.deepEqual(chrome.navigations, ["https://www.leclercdrive.fr/"]);
 });
 
+test("an in-page fetch redirected off the allowlist is refused, even with CORS", async () => {
+  const chrome = fakeChrome((url) => {
+    if (url.host === "www.leclercdrive.fr" && url.pathname === "/go") return { redirect: "https://evil.example/data" };
+    if (url.host === "evil.example") return { body: '{"fake":true}', cors: true };
+    return { body: "home" };
+  });
+  await assert.rejects(chrome.session.fetch({ url: "https://www.leclercdrive.fr/" }, "/go"), /redirection hors liste : evil\.example/);
+});
+
+test("a tab that moved away by itself is not used: the server navigates back", async () => {
+  const chrome = fakeChrome((url) => (url.host === "www.leclercdrive.fr" ? { body: `page ${url.pathname}` } : { body: "x" }));
+  const http = makeHttp(testConfig(), chrome.session);
+  const page = () => ({ url: "https://www.leclercdrive.fr/" });
+  const blocked = () => "blocked";
+  assert.equal((await http.request(page, "/a", { blockedMessage: blocked })).text(), "page /a");
+  chrome.moveTab("https://fd9-secure.leclercdrive.fr/login");
+  const res = await http.request(page, "/b", { blockedMessage: blocked });
+  assert.equal(res.text(), "page /b");
+  assert.equal(chrome.navigations.length, 2);
+});
+
 test("a navigation redirected off the allowlist stops there", async () => {
   const chrome = fakeChrome((url) =>
     url.host === "www.leclercdrive.fr" ? { redirect: "https://evil.example/" } : { body: "x" },
@@ -84,13 +105,9 @@ test("the locator drops stores whose host or ids are not plain Leclerc ones", as
     { noPL: "2", name: "Secure", urlSiteCourse: "https://fd9-secure.leclercdrive.fr/" },
     { noPL: "../x", name: "Chemin", urlSiteCourse: "https://fd9-courses.leclercdrive.fr/" },
   ];
-  const chrome = fakeChrome((url) => {
-    if (url.host === "www.leclercdrive.fr") return { body: "home" };
-    return undefined;
-  });
-  // The locator API is cross-origin from www; the fake browser is same-origin
-  // only, so answer from www's origin by pointing the API at it.
-  const http = makeHttp(testConfig(), chrome.session);
+  // Only the mapping of the API's answers is under test: the three JSON calls
+  // are stubbed.
+  const http = makeHttp(testConfig(), fakeChrome(() => undefined).session);
   const locator = new StoreLocator(http) as unknown as { getJson: (u: string) => Promise<unknown> };
   const answers = [{ postalCodes: [{ id: "abc", postalCode: "37700" }] }, { latitude: 1, longitude: 2 }, { points }];
   locator.getJson = async () => answers.shift();
@@ -130,29 +147,38 @@ function profile(): string {
   return dir;
 }
 
-test("foreignChromeReason: lock, port, PID and Chrome's own port file must all match", () => {
+test("foreignChromeReason: lock, port, PID and browser id must all match", () => {
   const dir = profile();
-  assert.match(foreignChromeReason(dir, 9333) ?? "", /aucun verrou/);
+  const id = "/devtools/browser/1111-2222";
+  assert.match(foreignChromeReason(dir, 9333, id) ?? "", /aucun verrou/);
 
-  writeLock(dir, process.pid, 9444);
-  assert.match(foreignChromeReason(dir, 9333) ?? "", /port 9444/);
+  writeLock(dir, process.pid, 9444, id);
+  assert.match(foreignChromeReason(dir, 9333, id) ?? "", /port 9444/);
 
-  writeFileSync(join(dir, LOCK_FILE), JSON.stringify({ pid: 2 ** 22 + 12345, port: 9333 }));
-  assert.match(foreignChromeReason(dir, 9333) ?? "", /n'existe plus/);
+  writeFileSync(join(dir, LOCK_FILE), JSON.stringify({ pid: 2 ** 22 + 12345, port: 9333, browser: id }));
+  assert.match(foreignChromeReason(dir, 9333, id) ?? "", /n'existe plus/);
 
-  writeLock(dir, process.pid, 9333);
-  assert.match(foreignChromeReason(dir, 9333) ?? "", /profil du serveur/);
+  writeLock(dir, process.pid, 9333, id);
+  assert.match(foreignChromeReason(dir, 9333, "/devtools/browser/other") ?? "", /pas le Chrome du verrou/);
+  assert.match(foreignChromeReason(dir, 9333, null) ?? "", /pas le Chrome du verrou/);
+  assert.equal(foreignChromeReason(dir, 9333, id), null, "no DevToolsActivePort file: still ours");
+
   writeFileSync(join(dir, "DevToolsActivePort"), "9555\n/devtools/browser/x\n");
-  assert.match(foreignChromeReason(dir, 9333) ?? "", /profil du serveur/);
-
+  assert.match(foreignChromeReason(dir, 9333, id) ?? "", /profil du serveur/);
   writeFileSync(join(dir, "DevToolsActivePort"), "9333\n/devtools/browser/x\n");
-  assert.equal(foreignChromeReason(dir, 9333), null);
+  assert.equal(foreignChromeReason(dir, 9333, id), null);
+
+  // An old lock without the browser id is not trusted.
+  writeFileSync(join(dir, LOCK_FILE), JSON.stringify({ pid: process.pid, port: 9333 }));
+  assert.match(foreignChromeReason(dir, 9333, id) ?? "", /aucun verrou/);
 });
 
 test("a debug endpoint already on the port, not started by the server, is refused", async () => {
   let listCalls = 0;
   const server = createServer((req, res) => {
-    if (req.url === "/json/version") return res.end(JSON.stringify({ Browser: "Chrome/999" }));
+    if (req.url === "/json/version") {
+      return res.end(JSON.stringify({ Browser: "Chrome/999", webSocketDebuggerUrl: "ws://evil.example/devtools/browser/abc" }));
+    }
     listCalls++;
     res.end("[]");
   });

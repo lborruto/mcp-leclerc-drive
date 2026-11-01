@@ -4,6 +4,7 @@
  * docs/api-capture.md for the shapes.
  */
 
+import { BlockingError } from "../errors.js";
 import { Product } from "../types.js";
 
 /**
@@ -24,7 +25,7 @@ const STORE_PAGE_MARKER = "lstProduitsLight";
 export function assertStorePage(html: string): void {
   if (html.includes(STORE_PAGE_MARKER)) return;
   const expired = /session a expir|sessionexpiree/i.test(html);
-  throw new Error(
+  throw new BlockingError(
     expired
       ? "Session Leclerc Drive expirée. Ouvre Leclerc Drive dans Chrome et reconnecte-toi, puis réessaie."
       : "Bloqué par Leclerc Drive (challenge DataDome). Ouvre Leclerc Drive dans Chrome et " +

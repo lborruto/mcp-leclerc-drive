@@ -47,7 +47,10 @@ function shop(opts: { failId?: string; blockAfter?: number } = {}) {
       if (id === opts.failId) return { status: 500 };
       const events: unknown[] = [];
       if (CATALOG[id]) {
-        const qty = Math.min(d.iQuantite, CATALOG[id].stock);
+        // Like the site: action 1 only raises a line, action 2 only lowers it.
+        const now = cart.get(id) ?? 0;
+        const wanted = d.eTypeAction === 1 ? Math.max(now, d.iQuantite) : Math.min(now, d.iQuantite);
+        const qty = Math.min(wanted, CATALOG[id].stock);
         if (qty > 0) cart.set(id, qty);
         else cart.delete(id);
         events.push({ eTypeEvenement: 101, sIdUnique: `Produit${id}`, objElement: line(id, qty) });
@@ -87,6 +90,19 @@ test("update_quantity sets, remove_from_cart removes", async () => {
   const removed = await client.removeFromCart("11");
   assert.equal(removed.quantity, 0);
   assert.equal(cart.has("11"), false);
+});
+
+test("parallel adds of the same product add up (no lost update)", async () => {
+  const { cart, client } = shop();
+  await Promise.all([client.addToCart("11", 2), client.addToCart("11", 3), client.addMany([{ productId: "11", quantity: 1 }])]);
+  assert.equal(cart.get("11"), 6);
+});
+
+test("update_quantity lowers a line with the decrease action", async () => {
+  const { cart, client } = shop();
+  await client.addToCart("33", 5);
+  assert.equal((await client.updateQuantity("33", 2)).quantity, 2);
+  assert.equal(cart.get("33"), 2);
 });
 
 test("a quantity capped by stock is reported, not hidden", async () => {

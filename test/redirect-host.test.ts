@@ -70,3 +70,11 @@ test("a page that lands off the store explains what to do", async () => {
   const client = makeClient(config, chrome.session, store);
   await assert.rejects(client.searchProducts("lait"), /atterri sur https:\/\/www\.leclercdrive\.fr\/.*connecté/);
 });
+
+test("a set_store during a request does not give the new store the old one's shard", async () => {
+  const { store, client } = setup();
+  const search = client.searchProducts("lait"); // 085111 via fd1, lands on fd10
+  store.set({ storeId: "222222", noPR: "222222", host: "fd1-courses.leclercdrive.fr" });
+  await search;
+  assert.deepEqual(store.current(), { storeId: "222222", noPR: "222222", host: "fd1-courses.leclercdrive.fr" });
+});

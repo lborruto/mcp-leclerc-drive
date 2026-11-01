@@ -23,8 +23,28 @@ concurrency:
 # updates the version but not the date; its 14-day cooldown keeps the age rule. No Actions cache
 # feeds the build: the released tarball is built from a clean install.
 jobs:
+  # A release is only ever made from reviewed code: the tagged commit must be on main.
+  on-main:
+    name: Tagged commit is on main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME points to a commit that is not on main"
+            exit 1
+          fi
+
   checks:
     name: CI on the tagged commit
+    needs: on-main
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml

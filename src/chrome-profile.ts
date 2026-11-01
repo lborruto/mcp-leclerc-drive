@@ -7,19 +7,26 @@
  * - Never attach to a Chrome it did not start. A debug port lets whoever
  *   connects drive the browser, so something already listening on the port
  *   could be anyone's Chrome (or not Chrome at all). When the server starts
- *   Chrome it writes a lock (Chrome's PID + port) in the profile; later it only
- *   reuses a Chrome on that port if the lock matches, that PID is alive, and
- *   Chrome's own DevToolsActivePort file in the profile names the same port.
+ *   Chrome it writes a lock in the profile: Chrome's PID, the port, and the
+ *   browser's DevTools id (`/devtools/browser/<uuid>`, random for each Chrome
+ *   run). Later it only reuses a Chrome on that port if the lock names that
+ *   port, that PID is alive, and /json/version reports that same browser id.
+ *   (Chrome's DevToolsActivePort file is not written for a fixed port on every
+ *   platform, so it is checked only when present.)
  */
 
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
+
+import { BlockingError } from "./errors.js";
 
 export const LOCK_FILE = "mcp-leclerc-drive.lock";
 
 interface Lock {
   pid: number;
   port: number;
+  /** `/devtools/browser/<id>`: random per Chrome run, reported by /json/version. */
+  browser: string;
   startedAt?: string;
 }
 
@@ -67,12 +74,26 @@ export function mainProfileDirs(
   ].map((d) => join(config, ...d.split("/")));
 }
 
+/**
+ * Absolute, symlinks and Windows 8.3 short names resolved. For a folder not
+ * created yet, its nearest existing parent is resolved and the rest appended.
+ */
 function canonical(p: string, os: NodeJS.Platform): string {
   let full = resolve(p);
-  try {
-    full = realpathSync(full);
-  } catch {
-    /* not created yet */
+  let rest = "";
+  for (;;) {
+    try {
+      full = realpathSync.native(full) + rest;
+      break;
+    } catch {
+      const parent = dirname(full);
+      if (parent === full) {
+        full = full + rest;
+        break;
+      }
+      rest = sep + full.slice(parent.length).replace(/^[\\/]+/, "") + rest;
+      full = parent;
+    }
   }
   // macOS and Windows file systems are case-insensitive by default.
   return os === "linux" ? full : full.toLowerCase();
@@ -89,7 +110,7 @@ export function assertNotMainProfile(
   for (const main of mainProfileDirs(os, home, env)) {
     const m = canonical(main, os);
     if (dir === m || dir.startsWith(m + sep)) {
-      throw new Error(
+      throw new BlockingError(
         `LECLERC_CHROME_PROFILE_DIR pointe vers le profil principal de ton navigateur (${main}). ` +
           `Le serveur utilise toujours un profil dédié : retire cette variable (défaut ` +
           `~/.mcp-leclerc-drive/chrome) ou choisis un dossier vide à part.`,
@@ -98,15 +119,17 @@ export function assertNotMainProfile(
   }
 }
 
-export function writeLock(profileDir: string, pid: number, port: number): void {
-  const lock: Lock = { pid, port, startedAt: new Date().toISOString() };
+export function writeLock(profileDir: string, pid: number, port: number, browser: string): void {
+  const lock: Lock = { pid, port, browser, startedAt: new Date().toISOString() };
   writeFileSync(join(profileDir, LOCK_FILE), JSON.stringify(lock) + "\n", "utf8");
 }
 
 function readLock(profileDir: string): Lock | null {
   try {
     const o = JSON.parse(readFileSync(join(profileDir, LOCK_FILE), "utf8"));
-    if (Number.isInteger(o?.pid) && o.pid > 0 && Number.isInteger(o?.port)) return o as Lock;
+    if (Number.isInteger(o?.pid) && o.pid > 0 && Number.isInteger(o?.port) && typeof o?.browser === "string") {
+      return o as Lock;
+    }
   } catch {
     /* missing or unreadable */
   }
@@ -131,15 +154,17 @@ function devToolsActivePort(profileDir: string): number | null {
 }
 
 /**
- * Why a Chrome found listening on `port` must not be used, or null if it is the
- * one this server started on `profileDir`.
+ * Why a Chrome found listening on `port` (reporting `browser` as its DevTools
+ * id) must not be used, or null if it is the one this server started on
+ * `profileDir`.
  */
-export function foreignChromeReason(profileDir: string, port: number): string | null {
+export function foreignChromeReason(profileDir: string, port: number, browser: string | null): string | null {
   const lock = readLock(profileDir);
   if (!lock) return "aucun verrou du serveur dans son profil";
   if (lock.port !== port) return `le verrou indique le port ${lock.port}`;
   if (!pidAlive(lock.pid)) return "le Chrome du verrou n'existe plus";
+  if (!browser || browser !== lock.browser) return "ce n'est pas le Chrome du verrou";
   const active = devToolsActivePort(profileDir);
-  if (active !== port) return "ce Chrome n'utilise pas le profil du serveur";
+  if (active !== null && active !== port) return "ce Chrome n'utilise pas le profil du serveur";
   return null;
 }

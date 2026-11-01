@@ -8,10 +8,15 @@
  *    answer with a redirect to its fdN-secure twin, which an in-page fetch
  *    cannot follow. The page is navigated to the store again (a top-level
  *    navigation follows the redirect and restores the session), then the
- *    request is retried once.
+ *    request is retried once. Same when the tab was found off the page the
+ *    server left it on.
+ *
+ * Once those retries are spent, the failure is a BlockingError: every
+ * following request would hit it too.
  */
 
 import { BrowserFetchError, ChromeSession, PageResponse, PageTarget } from "../browser.js";
+import { BlockingError } from "../errors.js";
 import { delay, Throttler } from "./throttle.js";
 
 /** HTTP statuses that indicate a DataDome challenge / rate-limit worth retrying. */
@@ -51,19 +56,20 @@ export class PageHttp {
             body: opts.body,
           });
         } catch (err) {
-          if (err instanceof BrowserFetchError && err.failedToFetch && !renavigated) {
+          if (err instanceof BrowserFetchError && (err.failedToFetch || err.staleTab) && !renavigated) {
             renavigated = true;
             this.browser.invalidatePage();
             attempt--; // a fresh navigation, not a 403/429 retry
             continue;
           }
+          if (err instanceof BrowserFetchError) throw new BlockingError(err.message);
           throw err;
         }
         opts.onResponse?.(res);
         if (!RETRYABLE_STATUSES.has(res.status)) return res;
         lastStatus = res.status;
       }
-      throw new Error(opts.blockedMessage(lastStatus));
+      throw new BlockingError(opts.blockedMessage(lastStatus));
     });
   }
 }
