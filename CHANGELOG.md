@@ -12,18 +12,6 @@ published them to npm. This repository continues from 0.3.0.
 
 ## [Unreleased]
 
-### Added
-
-- `search_product` takes `limit` (20 by default, up to 60) and `only_available`, lists available
-  products first and says how many it left out: a search used to send every product on the page
-  (often 50 to 200) to the model.
-- `get_store` also says where the server's Chrome stands: connected, open, not started yet, or
-  its port taken by another program.
-
-### Changed
-
-- CI runs once per change (pull requests and `main`), not twice.
-
 ## [0.4.0] - 2026-11-01
 
 First release of this continuation: the two open upstream issues fixed, the Chrome session
@@ -42,6 +30,11 @@ release tarball or a clone, never `npx mcp-leclerc-drive` (that is upstream's 0.
 - Unit tests on a simulated browser and cart, a contract test on the tool list, and CI on Linux,
   macOS and Windows with gitleaks, CodeQL, npm audit and a host-allowlist check of the code.
   Releases come with build-provenance attestations.
+- `search_product` takes `limit` (20 by default, up to 60) and `only_available`, lists available
+  products first and says how many it left out: a search used to send every product on the page
+  (often 50 to 200) to the model.
+- `get_store` also says where the server's Chrome stands: connected, open, not started yet, or
+  its port taken by another program.
 
 ### Changed
 
