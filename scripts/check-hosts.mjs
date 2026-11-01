@@ -22,6 +22,9 @@ const ALLOWED_HOST_PATTERNS = [
   /^api-recherchemagasins\.leclercdrive\.fr$/,
   /^127\.0\.0\.1$/,
   /^localhost$/,
+  // The documentation placeholder for a store shard, in messages and comments. Not a host anyone
+  // can reach through the server: the runtime allowlist requires digits.
+  /^fdN-(courses|secure)\.leclercdrive\.fr$/,
 ];
 
 // A URL literal: scheme, optional user info, then the host (a name or an IPv4 address). An IPv6
@@ -38,8 +41,7 @@ const BARE_HOST_RE = /\b(?:[A-Za-z0-9-]+\.)+leclercdrive\.fr\b/g;
 const SKIPPED_EXTENSIONS = new Set([".map"]);
 
 function isAllowed(host) {
-  const h = host.toLowerCase();
-  return ALLOWED_HOST_PATTERNS.some((re) => re.test(h));
+  return ALLOWED_HOST_PATTERNS.some((re) => re.test(host) || re.test(host.toLowerCase()));
 }
 
 function* walk(dir) {
