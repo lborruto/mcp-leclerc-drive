@@ -67,6 +67,11 @@ const DEFAULT_CHROME: Record<string, string> = {
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/** Longest wait for any CDP command. */
+const CDP_TIMEOUT_MS = 60_000;
+/** Longest wait for an in-page fetch, aborted in the page itself (below the CDP timeout). */
+const FETCH_TIMEOUT_MS = 45_000;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
 
@@ -102,7 +107,7 @@ function parseUrl(u: string): URL | null {
 export class ChromeSession {
   private ws?: Any;
   private msgId = 0;
-  private readonly pending = new Map<number, (m: Any) => void>();
+  private readonly pending = new Map<number, { res: (m: Any) => void; rej: (e: Error) => void }>();
   private eventWaiters: Array<{ method: string; res: () => void }> = [];
   /** Where the tab actually is, read from the page after each navigation. */
   private landedUrl = "";
@@ -185,9 +190,11 @@ export class ChromeSession {
     });
     ws.onmessage = (e: Any) => {
       const m = JSON.parse(String(e.data));
-      if (m.id && this.pending.has(m.id)) {
-        this.pending.get(m.id)!(m);
+      const waiter = m.id ? this.pending.get(m.id) : undefined;
+      if (waiter) {
         this.pending.delete(m.id);
+        if (m.error) waiter.rej(new Error(`Chrome a refusé la commande : ${m.error.message ?? "erreur CDP"}`));
+        else waiter.res(m);
       } else if (m.method) {
         this.eventWaiters = this.eventWaiters.filter((w) => {
           if (w.method === m.method) {
@@ -198,16 +205,46 @@ export class ChromeSession {
         });
       }
     };
+    // The window was closed, Chrome quit or crashed: fail what is in flight and
+    // start over (relaunch, re-navigate) on the next request.
+    ws.onclose = () => {
+      if (this.ws !== ws) return;
+      this.ws = undefined;
+      this.landedUrl = "";
+      const lost = new Error(
+        "La connexion à Chrome a été perdue (fenêtre fermée ?). Réessaie : le serveur relancera Chrome.",
+      );
+      for (const w of this.pending.values()) w.rej(lost);
+      this.pending.clear();
+    };
     this.ws = ws;
     await this.cdp("Page.enable");
     this.landedUrl = page.url || "";
   }
 
-  private cdp(method: string, params: Any = {}): Promise<Any> {
+  /** Send one CDP command; rejects on a CDP error, a lost connection or a timeout. */
+  private cdp(method: string, params: Any = {}, timeoutMs = CDP_TIMEOUT_MS): Promise<Any> {
+    const ws = this.ws;
+    if (!ws || ws.readyState !== 1) {
+      return Promise.reject(new Error("Chrome n'est pas connecté. Réessaie : le serveur le relancera."));
+    }
     const id = ++this.msgId;
-    return new Promise((res) => {
-      this.pending.set(id, res);
-      this.ws.send(JSON.stringify({ id, method, params }));
+    return new Promise((res, rej) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        rej(new Error(`Chrome ne répond pas (${method}, ${timeoutMs / 1000} s).`));
+      }, timeoutMs);
+      this.pending.set(id, {
+        res: (m) => {
+          clearTimeout(timer);
+          res(m);
+        },
+        rej: (e) => {
+          clearTimeout(timer);
+          rej(e);
+        },
+      });
+      ws.send(JSON.stringify({ id, method, params }));
     });
   }
 
@@ -236,7 +273,10 @@ export class ChromeSession {
     if (current && accept(current)) return current;
 
     const loaded = this.waitEvent("Page.loadEventFired");
-    await this.cdp("Page.navigate", { url: target.url });
+    const nav = await this.cdp("Page.navigate", { url: target.url });
+    if (nav.result?.errorText) {
+      throw new Error(`Chrome n'a pas pu ouvrir ${target.url} (${nav.result.errorText}).`);
+    }
     await loaded;
     await delay(this.opts.settleMs ?? 1800); // let the DataDome JS challenge resolve
     this.landedUrl = await this.locationHref();
@@ -303,6 +343,7 @@ export class ChromeSession {
     const expression = `(async () => {
       const a = ${JSON.stringify(args)};
       try {
+        a.init.signal = AbortSignal.timeout(${FETCH_TIMEOUT_MS});
         const r = await fetch(a.url, a.init);
         const t = await r.text();
         return { status: r.status, ok: r.ok, statusText: r.statusText, body: t };
