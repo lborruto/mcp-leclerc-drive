@@ -24,6 +24,28 @@ export function formatProduct(p: Product): string {
   return bits.join(" ");
 }
 
+/**
+ * Search results for the model: available products first (the site's order
+ * otherwise kept), at most `limit`, with a count of what was left out.
+ */
+export function formatSearch(
+  query: string,
+  products: Product[],
+  opts: { limit: number; onlyAvailable: boolean },
+): string {
+  if (products.length === 0) return `Aucun produit trouvé pour « ${query} ».`;
+  const pool = opts.onlyAvailable ? products.filter((p) => p.available) : products;
+  if (pool.length === 0) return `Aucun produit disponible pour « ${query} » (${products.length} indisponible(s)).`;
+  const ordered = [...pool.filter((p) => p.available), ...pool.filter((p) => !p.available)];
+  const shown = ordered.slice(0, opts.limit);
+  const head =
+    shown.length < ordered.length
+      ? `${ordered.length} produit(s) pour « ${query} », les ${shown.length} premiers :`
+      : `${ordered.length} produit(s) pour « ${query} » :`;
+  const more = shown.length < ordered.length ? `\n… ${ordered.length - shown.length} autre(s) : précise la recherche ou augmente limit.` : "";
+  return `${head}\n${shown.map(formatProduct).join("\n")}${more}`;
+}
+
 export function formatCart(cart: Cart): string {
   if (cart.items.length === 0) return `Panier vide (magasin ${cart.storeId}).`;
   const lines = cart.items.map(
