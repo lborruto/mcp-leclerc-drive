@@ -59,7 +59,7 @@ API reference: `docs/api-capture.md`.
 | 1 | Issue #1: remember where the page landed, build URLs on the real origin, persist the corrected host | ✅ |
 | 2 | Issue #2: on "Failed to fetch", re-navigate to the store and retry once (keep the 403/429 retry) | ✅ |
 | 3 | Hardening: port 9333, PID+port lock in the profile, host allowlist (navigation, fetch, set_store, LECLERC_HOST), refuse the main Chrome profile | ✅ |
-| 4 | `add_many` tool: sequential, throttled, carries on after a failure, per-item result + final cart | ⏳ |
+| 4 | `add_many` tool: sequential, throttled, carries on after a failure, per-item result + final cart | ✅ |
 | 5 | Product details: inspect raw `objElement` fields (1-2 live searches), expose only what exists | ⏳ |
 | 6 | Wrap-up: README, summary since `ac341d7`, grep for URLs outside the allowlist in `src/` and `dist/` | ⏳ |
 | + | Carte blanche (2026-11-01): bug fixes, tests, CI/CD, branch protection, SECURITY/CONTRIBUTING, portfolio page | ⏳ |

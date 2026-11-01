@@ -17,7 +17,7 @@ import { PageResponse, PageTarget } from "../browser.js";
 import { storePath } from "../config.js";
 import { isStoreHost } from "../hosts.js";
 import { StoreState } from "../store.js";
-import { Cart, CartItem, Product } from "../types.js";
+import { AddManyItemResult, AddManyResult, Cart, CartChange, CartItem, Product } from "../types.js";
 import {
   assertStorePage,
   CartEvent,
@@ -131,15 +131,16 @@ export class LeclercClient {
 
   // ---- Cart mutations ----------------------------------------------------
 
-  private async mutate(
-    productId: string,
-    quantity: number,
-    action: number,
-  ): Promise<Cart> {
+  /**
+   * Set a cart line to an absolute quantity (the backend's only mode, see
+   * capture doc §2) and report what Leclerc Drive says the line and the cart
+   * now hold.
+   */
+  private async mutate(productId: string, target: number, action: number): Promise<CartChange> {
     const payload = {
       eTypeAction: action,
       iIdProduit: String(productId),
-      iQuantite: quantity,
+      iQuantite: target,
       sNoPointLivraison: this.store.current().storeId,
     };
     const body = "d=" + encodeURIComponent(JSON.stringify(payload));
@@ -153,35 +154,74 @@ export class LeclercClient {
       },
       body,
     );
-    if (!res.ok) throw new Error(`Cart HTTP ${res.status} (${res.statusText})`);
+    if (!res.ok) throw new Error(`Panier : HTTP ${res.status} (${res.statusText})`);
     const text = await res.text();
     let events: CartEvent[];
     try {
       events = JSON.parse(text);
-    } catch (err) {
-      throw new Error(
-        `Unexpected cart response (not JSON): ${(err as Error).message}. ` +
-          `First chars: ${text.slice(0, 120)}`,
-      );
+    } catch {
+      throw new Error("Réponse inattendue de Leclerc Drive au changement du panier (pas du JSON).");
     }
-    return this.cartFromEvents(events);
+    if (!Array.isArray(events)) {
+      throw new Error("Réponse inattendue de Leclerc Drive au changement du panier.");
+    }
+    return changeFromEvents(events, String(productId), target);
   }
 
-  async addToCart(productId: string, quantity: number): Promise<Cart> {
-    return this.mutate(productId, quantity, ACTION_ADD);
+  /** Add `quantity` units on top of what the cart already holds. */
+  async addToCart(productId: string, quantity: number): Promise<CartChange> {
+    const current = await this.currentQuantity(productId);
+    return this.mutate(productId, current + quantity, ACTION_ADD);
   }
 
-  async removeFromCart(productId: string): Promise<Cart> {
+  async removeFromCart(productId: string): Promise<CartChange> {
     return this.mutate(productId, 0, ACTION_SUB);
   }
 
-  async updateQuantity(productId: string, quantity: number): Promise<Cart> {
+  /** Set the line to exactly `quantity` (0 removes it). */
+  async updateQuantity(productId: string, quantity: number): Promise<CartChange> {
     if (quantity <= 0) return this.removeFromCart(productId);
     // Direction matters: action 1 increases, action 2 decreases. We read the
     // current quantity to choose, since iQuantite is an absolute target.
     const current = await this.currentQuantity(productId);
     const action = quantity >= current ? ACTION_ADD : ACTION_SUB;
     return this.mutate(productId, quantity, action);
+  }
+
+  /**
+   * Add several products, one after another through the shared throttle. One
+   * item failing does not stop the others; a block (DataDome, lost Chrome)
+   * does, since every following request would fail the same way and only make
+   * the block worse. The cart is read once before and once after.
+   */
+  async addMany(items: Array<{ productId: string; quantity: number }>): Promise<AddManyResult> {
+    const before = await this.getCart();
+    const inCart = new Map(before.items.map((i) => [i.product.id, i.quantity]));
+    const results: AddManyItemResult[] = [];
+    let stopped: string | undefined;
+    for (const { productId, quantity } of items) {
+      if (stopped) {
+        results.push({ productId, requested: quantity, ok: false, error: `non tenté : ${stopped}` });
+        continue;
+      }
+      try {
+        const change = await this.mutate(productId, (inCart.get(productId) ?? 0) + quantity, ACTION_ADD);
+        inCart.set(productId, change.quantity);
+        results.push({ productId, requested: quantity, ok: true, change });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        results.push({ productId, requested: quantity, ok: false, error: message });
+        if (isBlocking(message)) stopped = "arrêt après un blocage";
+      }
+    }
+    let cart: Cart | undefined;
+    let cartError: string | undefined;
+    try {
+      cart = await this.getCart();
+    } catch (err) {
+      cartError = err instanceof Error ? err.message : String(err);
+    }
+    return { results, cart, cartError };
   }
 
   private async currentQuantity(productId: string): Promise<number> {
@@ -228,28 +268,52 @@ export class LeclercClient {
       storeId: this.store.current().storeId,
     };
   }
+}
 
-  /** Build a Cart from a mutation event array (see capture doc §2). */
-  private cartFromEvents(events: CartEvent[]): Cart {
-    const items: CartItem[] = [];
-    let total = 0;
-    let itemCount = 0;
-    for (const e of events) {
-      const id = String(e.sIdUnique ?? "");
-      const el = e.objElement ?? {};
-      if (id.startsWith("Panier")) {
-        total = num(el.rTotalAPayer) ?? parseEuro(el.sTotalAPayer) ?? total;
-        itemCount = num(el.iQuantitePanier) ?? itemCount;
-      } else if (id.startsWith("Produit") && el.sType === "Produit") {
-        const qty = num(el.iQuantitePanier) ?? 0;
-        if (qty > 0) {
-          const product = mapProduct(el as RawProduct);
-          const lineTotal =
-            num(el.rTotalAPayer) ?? parseEuro(el.sTotalAPayer) ?? round2(product.price * qty);
-          items.push({ product, quantity: qty, lineTotal });
-        }
+/** A failure every later request would hit too: stop a batch there. */
+function isBlocking(message: string): boolean {
+  return /Bloqué|bloqué|DataDome|expirée|connexion à Chrome|n'est pas connecté|ne répond pas|ne démarre pas/.test(message);
+}
+
+/**
+ * Read a cart mutation's event array (capture doc §2): the changed product's
+ * line (`Produit…` event) and the cart totals (`Panier…` event).
+ */
+export function changeFromEvents(events: CartEvent[], productId: string, target: number): CartChange {
+  let line: CartItem | undefined;
+  let lineQuantity: number | undefined;
+  let total: number | undefined;
+  let itemCount: number | undefined;
+  let limited = false;
+  for (const e of events) {
+    const id = String(e.sIdUnique ?? "");
+    const el = e.objElement ?? {};
+    if (id.startsWith("Panier")) {
+      total = num(el.rTotalAPayer) ?? parseEuro(el.sTotalAPayer) ?? total;
+      itemCount = num(el.iQuantitePanier) ?? itemCount;
+      if (el.fQuantiteDisponibleDepassee === true) limited = true;
+    } else if (id === `Produit${productId}` || (id.startsWith("Produit") && String(el.iIdProduit) === productId)) {
+      lineQuantity = num(el.iQuantitePanier) ?? 0;
+      if (lineQuantity > 0) {
+        const product = mapProduct(el as RawProduct);
+        const lineTotal =
+          num(el.rTotalAPayer) ?? parseEuro(el.sTotalAPayer) ?? round2(product.price * lineQuantity);
+        line = { product, quantity: lineQuantity, lineTotal };
       }
     }
-    return { items, itemCount, total: round2(total), storeId: this.store.current().storeId };
   }
+  if (lineQuantity === undefined && target > 0) {
+    throw new Error(
+      `Leclerc Drive n'a pas confirmé le produit ${productId} (identifiant inconnu dans ce magasin ?).`,
+    );
+  }
+  const quantity = lineQuantity ?? 0;
+  return {
+    productId,
+    quantity,
+    line,
+    limited: limited || quantity < target,
+    cartTotal: total === undefined ? undefined : round2(total),
+    cartItemCount: itemCount,
+  };
 }
