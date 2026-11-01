@@ -11,10 +11,13 @@ const euro = (n: number) => `${n.toFixed(2).replace(".", ",")} €`;
 export function formatProduct(p: Product): string {
   const bits = [
     p.label,
-    p.brand ? `(${p.brand})` : null,
     `— ${euro(p.price)}`,
     p.pricePerUnit ? `[${p.pricePerUnit}]` : null,
-    p.nutriScore ? `Nutri-Score ${p.nutriScore}` : null,
+    p.size ? `· ${p.size}` : null,
+    p.offer ? `🏷️ ${p.offer}` : null,
+    p.family ? `· ${p.family}` : null,
+    p.rating ? `· ${p.rating.stars.toString().replace(".", ",")}/5 (${p.rating.reviews} avis)` : null,
+    p.inCart ? `· ${p.inCart} au panier` : null,
     p.available ? null : "⚠️ indisponible",
     `id=${p.id}`,
   ].filter(Boolean);
@@ -63,7 +66,7 @@ export function formatAddMany(r: AddManyResult): string {
 export function formatStores(query: string, stores: FoundStore[]): string {
   const lines = stores.map((s) => {
     const dist = s.distanceKm !== undefined ? ` ${s.distanceKm.toFixed(1)} km` : "";
-    return `• ${s.name} — ${s.serviceType}${dist} (id=${s.storeId})`;
+    return `• ${s.name} — ${s.serviceType}${dist} (id=${s.key})`;
   });
   return (
     `Drives autour de « ${query} » :\n${lines.join("\n")}\n\n` +

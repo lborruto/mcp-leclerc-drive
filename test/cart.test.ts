@@ -158,6 +158,15 @@ test("add_many stops at a block instead of hammering a blocked site", async () =
   assert.equal(posts(), 3, "1 success + the blocked one with its single retry, nothing after");
 });
 
+test("an id that comes back as a line at 0 (seen live) is a failure", () => {
+  assert.throws(
+    () => changeFromEvents([{ sIdUnique: "Produit999999999", objElement: { iIdProduit: 999999999, iQuantitePanier: 0 } }], "999999999", 1),
+    /n'a pas ajouté le produit 999999999/,
+  );
+  // ...while a removal reaching 0 is what was asked.
+  assert.equal(changeFromEvents([{ sIdUnique: "Produit5", objElement: { iIdProduit: 5, iQuantitePanier: 0 } }], "5", 0).quantity, 0);
+});
+
 test("changeFromEvents reads the line and the totals", () => {
   const c = changeFromEvents(
     [

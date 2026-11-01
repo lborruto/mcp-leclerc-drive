@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   assertStorePage,
   decodeEntities,
+  withoutCartContext,
   extractArrayNamed,
   extractCartTotal,
   mapProduct,
@@ -25,6 +26,12 @@ const product = (id: number, extra: Record<string, unknown> = {}) =>
     sPrixParUniteDeMesure: "1,29 € / L",
     iQteDisponible: 12,
     sUrlVignetteProduit: "https://fd9-courses.leclercdrive.fr/x.jpg",
+    sUrlVoirRayon: "https://fd9-courses.leclercdrive.fr/magasin-053701-X/rayon-284370-Lait-et-Boissons-lactees.aspx",
+    nrContenanceTotale: 1,
+    sUniteMesureTotale: "l",
+    objAvisClient: { Note: { Valeur: 4.5 }, NbAvis: 149 },
+    sTexteLogoCoupon: "",
+    sPrixPromo: "0,00 €",
     ...extra,
   });
 
@@ -56,8 +63,13 @@ test("mapProduct builds a Product from a raw record", () => {
     id: "2612",
     label: "Lait demi-écrémé Bio 1L",
     price: 1.29,
+    offer: undefined,
     pricePerUnit: "1,29 € / L",
+    size: "1 l",
+    family: "Lait et Boissons lactees",
+    rating: { stars: 4.5, reviews: 149 },
     available: true,
+    inCart: undefined,
     imageUrl: "https://fd9-courses.leclercdrive.fr/x.jpg",
   });
 });
@@ -95,4 +107,28 @@ test("assertStorePage accepts a store page and explains block pages", () => {
   assert.doesNotThrow(() => assertStorePage(SEARCH_PAGE));
   assert.throws(() => assertStorePage("<html>Votre session a expiré</html>"), /Session Leclerc Drive expirée/);
   assert.throws(() => assertStorePage("<html>captcha</html>"), /DataDome/);
+});
+
+test("mapProduct exposes only what the record has: offer, size in pieces, cart quantity", () => {
+  const p = mapProduct({
+    iIdProduit: 9,
+    nrPVUnitaireTTC: 1.84,
+    sTexteLogoCoupon: "B&#233;n&#233;ficiez de 0.40 € de remise imm&#233;diate.",
+    nrContenanceTotale: 4,
+    sUniteMesureTotale: "p",
+    iQuantitePanier: 2,
+    objAvisClient: {},
+    sUrlVoirRayon: "https://fd2-courses.leclercdrive.fr/magasin-1-X/fiche-produits-9-X.aspx",
+  });
+  assert.equal(p.offer, "Bénéficiez de 0.40 € de remise immédiate.");
+  assert.equal(p.size, "4 pièces");
+  assert.equal(p.inCart, 2);
+  assert.equal(p.rating, undefined, "no reviews, no rating");
+  assert.equal(p.family, undefined, "not a family link");
+});
+
+test("withoutCartContext leaves the page's own records only", () => {
+  const ids = scanProductRecords(withoutCartContext(SEARCH_PAGE)).map((r) => String(r.iIdProduit));
+  assert.deepEqual(ids, ["2612", "2613", "2612"]);
+  assert.match(withoutCartContext(SEARCH_PAGE), /"lstProduits":\[\],\s*"lstProduitsLight":\[\]/);
 });

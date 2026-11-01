@@ -49,6 +49,15 @@ export interface RawProduct {
   sTotalAPayer?: string;
   sUrlVignetteProduit?: string;
   sType?: string;
+  /** Instant-discount text, e.g. "Bénéficiez de 0.40 € de remise immédiate." */
+  sTexteLogoCoupon?: string;
+  /** Link to the product's family page: /magasin-…/rayon-<iIdFamille>-<Family-Name>.aspx */
+  sUrlVoirRayon?: string;
+  iIdFamille?: number;
+  /** Total pack size and its unit ("kg", "l", "p" for pieces). */
+  nrContenanceTotale?: number;
+  sUniteMesureTotale?: string;
+  objAvisClient?: { Note?: { Valeur?: number }; NbAvis?: number };
 }
 
 export interface CartEvent {
@@ -56,19 +65,73 @@ export interface CartEvent {
   sIdUnique?: string;
   objElement?: Record<string, unknown> & Partial<RawProduct>;
 }
+/**
+ * Map a raw `objElement` record to a Product. Only fields the site really
+ * sends are exposed (inspected live 2026-11-01, see docs/api-capture.md §1);
+ * nothing is guessed: no brand or origin field exists, so none is given.
+ */
 export function mapProduct(rp: RawProduct): Product {
   const label = decodeEntities(
-    [rp.sLibelleLigne1, rp.sLibelleLigne2].filter(Boolean).join(" ").trim(),
+    [rp.sLibelleLigne1, rp.sLibelleLigne2].filter(Boolean).join(" ").replace(/\s+/g, " ").trim(),
   );
   const price = num(rp.nrPVUnitaireTTC) ?? parseEuro(rp.sPrixUnitaire) ?? 0;
+  const offer = rp.sTexteLogoCoupon?.trim();
+  const reviews = num(rp.objAvisClient?.NbAvis);
+  const stars = num(rp.objAvisClient?.Note?.Valeur);
+  const inCart = num(rp.iQuantitePanier) ?? num(rp.iQtePanier);
   return {
     id: String(rp.iIdProduit),
     label: label || `Produit ${rp.iIdProduit}`,
     price,
+    offer: offer ? decodeEntities(offer) : undefined,
     pricePerUnit: rp.sPrixParUniteDeMesure || undefined,
+    size: packSize(rp.nrContenanceTotale, rp.sUniteMesureTotale),
+    family: familyName(rp.sUrlVoirRayon),
+    rating: stars !== undefined && reviews ? { stars, reviews } : undefined,
     available: (num(rp.iQteDisponible) ?? 0) > 0,
+    inCart: inCart && inCart > 0 ? inCart : undefined,
     imageUrl: rp.sUrlVignetteProduit || undefined,
   };
+}
+
+/** "0,6 kg", "6 l", "4 pièces" from the total pack size. */
+function packSize(total: unknown, unit: unknown): string | undefined {
+  const n = num(total);
+  if (n === undefined || n <= 0 || typeof unit !== "string" || !unit.trim()) return undefined;
+  const u = unit.trim().toLowerCase();
+  const value = String(n).replace(".", ",");
+  if (u === "p") return `${value} pièce${n > 1 ? "s" : ""}`;
+  return `${value} ${u}`;
+}
+
+/**
+ * The product family's name, from the slug of its "Voir le rayon" link
+ * (rayon-319801-Legumes-et-Poelees.aspx → "Legumes et Poelees"). The slug has
+ * no accents; it is the only place the site names the family in a record.
+ */
+function familyName(url: unknown): string | undefined {
+  if (typeof url !== "string") return undefined;
+  const m = url.match(/\/rayon-\d+-([A-Za-z0-9-]+)\.aspx(?:[?#]|$)/);
+  const name = m?.[1].replace(/-+/g, " ").trim();
+  return name || undefined;
+}
+
+/**
+ * Remove the cart context from a page (`lstProduits` and `lstProduitsLight`
+ * arrays, present on every store page): what is left are the page's own
+ * product records, e.g. the search results.
+ */
+export function withoutCartContext(html: string): string {
+  let out = html;
+  for (const name of ["lstProduits", "lstProduitsLight"]) {
+    for (;;) {
+      const arr = extractArrayNamed(out, name);
+      if (!arr || arr === "[]") break;
+      const at = out.indexOf(`"${name}":${arr}`);
+      out = out.slice(0, at) + `"${name}":[]` + out.slice(at + name.length + 3 + arr.length);
+    }
+  }
+  return out;
 }
 
 /**

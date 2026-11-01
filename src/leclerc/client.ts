@@ -30,6 +30,7 @@ import {
   RawProduct,
   round2,
   scanProductRecords,
+  withoutCartContext,
 } from "./parse.js";
 import { PageHttp } from "./http.js";
 
@@ -134,11 +135,12 @@ export class LeclercClient {
     // The search page embeds product data inside `initOptions(...)` widget
     // calls as `{objContenu:{lstElements:[{objElement:{...iIdProduit...}}]}}`.
     // Each `objElement` is pure JSON, so we scan the page for every product
-    // record (smallest object enclosing an `iIdProduit`) and map it.
+    // record (smallest object enclosing an `iIdProduit`) and map it. The cart
+    // context every page carries is cut out first: cart lines are not results.
     const seen = new Set<string>();
     const products: Product[] = [];
-    for (const rp of scanProductRecords(html)) {
-      if (rp.sType && rp.sType !== "Produit") continue;
+    for (const rp of scanProductRecords(withoutCartContext(html))) {
+      if (rp.sType !== "Produit") continue;
       const id = String(rp.iIdProduit);
       if (seen.has(id)) continue;
       seen.add(id);
@@ -346,6 +348,10 @@ export function changeFromEvents(events: CartEvent[], productId: string, target:
     );
   }
   const quantity = lineQuantity ?? 0;
+  if (target > 0 && quantity === 0) {
+    // Seen live: an unknown id comes back as a line at 0, not as an error.
+    throw new Error(`Leclerc Drive n'a pas ajouté le produit ${productId} (identifiant inconnu ou indisponible).`);
+  }
   return {
     productId,
     quantity,

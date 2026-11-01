@@ -9,18 +9,24 @@
 export interface Product {
   /** Stable product identifier used by add_to_cart / update_quantity. */
   id: string;
-  /** Display label, e.g. "Lait demi-écrémé Bio 1L". */
+  /** Display label, e.g. "Lait demi-écrémé UHT Délisse Brique - 6x1L". */
   label: string;
-  /** Brand, e.g. "Marque Repère". Optional — not always present. */
-  brand?: string;
   /** Unit price in euros, e.g. 1.29. */
   price: number;
-  /** Price per kilo / litre when the site exposes it, e.g. "1,29 €/L". */
+  /** Offer text, e.g. "Bénéficiez de 0.40 € de remise immédiate." */
+  offer?: string;
+  /** Price per kilo / litre when the site exposes it, e.g. "1,29 € / l". */
   pricePerUnit?: string;
-  /** Nutri-Score letter A–E, when available. */
-  nutriScore?: string;
+  /** Total pack size, e.g. "0,6 kg", "6 l", "4 pièces". */
+  size?: string;
+  /** Product family as the site names it in its links (no accents), e.g. "Legumes et Poelees". */
+  family?: string;
+  /** Customer reviews: average stars (0–5) and number of reviews. */
+  rating?: { stars: number; reviews: number };
   /** Whether the item is currently orderable in the selected store. */
   available: boolean;
+  /** Units already in the cart, when there are some. */
+  inCart?: number;
   /** Thumbnail image URL, when available. */
   imageUrl?: string;
 }

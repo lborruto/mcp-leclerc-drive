@@ -78,3 +78,15 @@ test("a set_store during a request does not give the new store the old one's sha
   await search;
   assert.deepEqual(store.current(), { storeId: "222222", noPR: "222222", host: "fd1-courses.leclercdrive.fr" });
 });
+
+test("search results never include cart lines", async () => {
+  const config = testConfig();
+  const page = storePage(
+    [{ iIdProduit: 1, sLibelleLigne1: "Petits pois", nrPVUnitaireTTC: 1, iQteDisponible: 5 }],
+    [{ iIdProduit: 2, sLibelleLigne1: "Boisson végétale", nrPVUnitaireTTC: 2, iQuantitePanier: 1, rTotalAPayer: 2 }],
+  );
+  const chrome = fakeChrome(() => ({ body: page }));
+  const { store } = tempStore(config);
+  const products = await makeClient(config, chrome.session, store).searchProducts("petits pois");
+  assert.deepEqual(products.map((p) => p.label), ["Petits pois"]);
+});

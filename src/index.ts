@@ -215,7 +215,7 @@ server.registerTool(
       const stores = await locator.findStores(query);
       if (stores.length === 0) return `Aucun drive trouvé pour « ${query} ».`;
       lastFound.clear();
-      for (const s of stores) lastFound.set(s.storeId, s);
+      for (const s of stores) lastFound.set(s.key, s);
       return formatStores(query, stores);
     }),
 );
@@ -231,8 +231,8 @@ server.registerTool(
     inputSchema: {
       store_id: z
         .string()
-        .regex(/^\d{1,10}$/, "un identifiant magasin est fait de chiffres")
-        .describe("Identifiant magasin (champ id de find_stores)"),
+        .regex(/^\d{1,10}(-\d{1,10}){0,2}$/, "un identifiant magasin est fait de chiffres (et de tirets)")
+        .describe("Identifiant magasin, tel que find_stores l'affiche (ex. 027411)"),
       host: z
         .string()
         .max(100)
@@ -247,7 +247,7 @@ server.registerTool(
   ({ store_id, host }) =>
     run(async () => {
       const found = lastFound.get(store_id);
-      if (!found && !host) {
+      if (!found && (!host || !/^\d{1,10}$/.test(store_id))) {
         throw new Error(
           `Magasin ${store_id} inconnu. Lance d'abord find_stores, puis set_store avec un id ` +
             `de la liste (ou fournis le paramètre host).`,

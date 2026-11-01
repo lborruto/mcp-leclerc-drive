@@ -68,6 +68,21 @@ incl. DataDome, replayed).
   | `sUrlVignetteProduit` | thumbnail URL |
   | `iIdRayon`, `iIdFamille`, `niIdSousFamille` | category ids |
 
+- **Fields seen live (2026-11-01, store 027411, two searches)**, beyond the
+  table: `sTexteLogoCoupon` (offer text, e.g. "Bénéficiez de 0.40 € de remise
+  immédiate."), `sPrixPromo` (always `0,00 €` in what was seen: its meaning
+  when non-zero is unknown, so it is not exposed), `sUrlVoirRayon`
+  (`…/rayon-<iIdFamille>-<Family-Name>.aspx`: the only place the family is
+  named, as an accent-less slug; the parent `iIdRayon` has no name in the
+  record, so fresh vs frozen cannot be told reliably), `nrContenanceTotale` +
+  `sUniteMesureTotale` (pack size: `0.6`/`kg`, `6`/`l`, `p` = pieces),
+  `objAvisClient` (`Note.Valeur` stars, `NbAvis` reviews), `iQteMaxPanier`,
+  `eDisponibilite`, `sCategorie`, `niIdPhotoEnLigne`, `lstMentionsProduit`
+  (empty in all seen). **No brand field and no origin field**: both only
+  appear inside the label.
+- ⚠️ Every page also carries the cart (§3): its `lstProduits` records look
+  exactly like search results. The search cuts the cart context out before
+  scanning, or cart lines show up as results.
 - Product images also load from
   `fd9-photos.leclercdrive.fr/image.ashx?id={photoId}&use=l&cat=p` and
   Nutri-Score from `...&use=nsc` (note: photo id ≠ `iIdProduit`).
@@ -96,6 +111,9 @@ Single endpoint for all cart mutations. `op=1` constant.
   - `eTypeAction`: **1** = add / increase, **2** = decrease / remove.
   - `iQuantite`: the **new absolute target quantity** (NOT a delta).
   - **Remove** = `eTypeAction: 2`, `iQuantite: 0`. ✅ validated (cart went to 0).
+  - Unknown product id: **no error**, a `Produit{id}` event with
+    `iQuantitePanier: 0` (seen live 2026-11-01). The client treats "asked for
+    more than 0, line at 0" as a failure.
   - `objContexteProvenanceArticle` is analytics context and is **optional** —
     removals succeeded without it.
 
@@ -145,6 +163,8 @@ Three chained calls:
 
 Each `point` carries: `name`, **`noPL`** (store id, zero-padded string),
 **`noPR`** (retrieval point; == noPL for drives), `serviceType`
+(⚠️ relays — "relais camion", "relais piéton" — share their drive's `noPL`,
+seen live; `find_stores` shows them as `noPL-noPR` so each id is unique)
 (`drive` / `relais` / `livraison`), `distance` (km), `postalCode`,
 `coordinates {latitude, longitude}`, and **`urlSiteCourse` / `urlBase`** — the
 store's shopping host (e.g. `fd8`/`fd9`/`fd14-courses.leclercdrive.fr`, **varies

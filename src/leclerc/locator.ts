@@ -23,6 +23,12 @@ const API_BASE =
 const LOCATOR_PAGE = { url: "https://www.leclercdrive.fr/" };
 
 export interface FoundStore {
+  /**
+   * What the user picks with set_store: noPL for a drive, "noPL-noPR" when the
+   * retrieval point differs (relays share their drive's noPL), and unique in
+   * one result list.
+   */
+  key: string;
   storeId: string; // noPL
   noPR: string;
   name: string;
@@ -77,16 +83,23 @@ export class StoreLocator {
     );
 
     const out: FoundStore[] = [];
+    const keys = new Set<string>();
     for (const p of near.points ?? []) {
       // Only stores on a known shopping host, with plain numeric ids, are kept:
       // everything here ends up in URLs.
       const host = hostOf(p.urlSiteCourse || p.urlBase);
       if (!isStoreHost(host) || p.noPL === undefined || !isStoreId(String(p.noPL))) continue;
       if (p.noPR !== undefined && !isStoreId(String(p.noPR))) continue;
+      const storeId = String(p.noPL);
+      const noPR = String(p.noPR ?? p.noPL);
+      let key = noPR === storeId ? storeId : `${storeId}-${noPR}`;
+      for (let n = 2; keys.has(key); n++) key = `${noPR === storeId ? storeId : `${storeId}-${noPR}`}-${n}`;
+      keys.add(key);
       out.push({
-        storeId: String(p.noPL),
-        noPR: String(p.noPR ?? p.noPL),
-        name: p.name ?? `Magasin ${p.noPL}`,
+        key,
+        storeId,
+        noPR,
+        name: (p.name ?? `Magasin ${p.noPL}`).trim(),
         city: place.city,
         postalCode: p.postalCode,
         serviceType: (p.serviceType || p.type || "?").toLowerCase(),

@@ -115,6 +115,23 @@ test("the locator drops stores whose host or ids are not plain Leclerc ones", as
   assert.deepEqual(found.map((s) => s.name), ["Bon"]);
 });
 
+test("relays sharing their drive's id get their own id (seen live)", async () => {
+  const host = "https://fd2-courses.leclercdrive.fr/";
+  const points = [
+    { noPL: "027411", noPR: "027411", name: "Drive ", serviceType: "drive", urlSiteCourse: host },
+    { noPL: "027411", noPR: "027499", name: "Relais A", serviceType: "relais camion", urlSiteCourse: host },
+    { noPL: "027411", noPR: "027499", name: "Relais B", serviceType: "relais camion", urlSiteCourse: host },
+  ];
+  const locator = new StoreLocator(makeHttp(testConfig(), fakeChrome(() => undefined).session)) as unknown as {
+    getJson: () => Promise<unknown>;
+    findStores: StoreLocator["findStores"];
+  };
+  const answers = [{ postalCodes: [{ id: "abc", postalCode: "74100" }] }, { latitude: 1, longitude: 2 }, { points }];
+  locator.getJson = async () => answers.shift();
+  const found = await locator.findStores("74100");
+  assert.deepEqual(found.map((s) => [s.key, s.name]), [["027411", "Drive"], ["027411-027499", "Relais A"], ["027411-027499-2", "Relais B"]]);
+});
+
 // ---- Main profile guard ----------------------------------------------------
 
 test("refuses the main Chrome profile, and folders inside it, on each OS", () => {
