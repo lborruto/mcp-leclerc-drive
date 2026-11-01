@@ -18,7 +18,11 @@
  */
 
 import { spawn } from "node:child_process";
-import { platform } from "node:os";
+import { mkdirSync } from "node:fs";
+import { homedir, platform } from "node:os";
+
+import { assertNotMainProfile, foreignChromeReason, writeLock } from "./chrome-profile.js";
+import { assertAllowedUrl } from "./hosts.js";
 
 export interface PageResponse {
   /** URL of the page the fetch ran from (where navigation actually landed). */
@@ -121,32 +125,49 @@ export class ChromeSession {
   }
 
   private async launch(): Promise<void> {
-    const base = `http://127.0.0.1:${this.opts.port}`;
+    const { port, profileDir } = this.opts;
+    const base = `http://127.0.0.1:${port}`;
+    assertNotMainProfile(profileDir, platform(), homedir(), process.env);
 
-    // Reuse an already-running debug Chrome on this port (e.g. a previous run).
+    // Reuse a debug Chrome on this port only if this server started it, on
+    // this profile (see chrome-profile.ts). Anything else is left alone.
     let version = await tryJson(`${base}/json/version`);
-    if (!version) {
+    if (version) {
+      const reason = foreignChromeReason(profileDir, port);
+      if (reason) {
+        throw new Error(
+          `Un programme écoute déjà sur 127.0.0.1:${port}, mais ce n'est pas le Chrome lancé par ` +
+            `mcp-leclerc-drive (${reason}). Par sécurité, le serveur ne s'y connecte pas. Ferme-le, ` +
+            `ou choisis un autre port avec LECLERC_CHROME_PORT.`,
+        );
+      }
+    } else {
+      mkdirSync(profileDir, { recursive: true });
       const args = [
-        `--remote-debugging-port=${this.opts.port}`,
-        `--user-data-dir=${this.opts.profileDir}`,
+        `--remote-debugging-port=${port}`,
+        `--user-data-dir=${profileDir}`,
         "--no-first-run",
         "--no-default-browser-check",
-        "--no-first-run",
         "about:blank",
       ];
       if (this.opts.headless) args.unshift("--headless=new");
       const child = spawn(this.chromeBinary(), args, { detached: true, stdio: "ignore" });
+      let spawnError: Error | undefined;
+      child.on("error", (err) => (spawnError = err));
       child.unref();
-      for (let i = 0; i < 40 && !version; i++) {
+      for (let i = 0; i < 40 && !version && !spawnError; i++) {
         await delay(500);
         version = await tryJson(`${base}/json/version`);
       }
-      if (!version) {
+      if (!version || !child.pid) {
         throw new Error(
-          `Chrome ne démarre pas sur le port ${this.opts.port}. Vérifie que Google ` +
-            `Chrome est installé (ou définis LECLERC_CHROME_PATH).`,
+          `Chrome ne démarre pas sur le port ${port}. Vérifie que Google Chrome est installé (ou ` +
+            `définis LECLERC_CHROME_PATH), et qu'aucune fenêtre n'est déjà ouverte sur le profil ` +
+            `${profileDir} sans le serveur.` +
+            (spawnError ? ` (${spawnError.message})` : ""),
         );
       }
+      writeLock(profileDir, child.pid, port);
     }
 
     let targets: Any[] = (await tryJson(`${base}/json/list`)) || [];
@@ -209,7 +230,7 @@ export class ChromeSession {
    * landed, not with where it was sent.
    */
   private async ensurePage(target: PageTarget): Promise<URL> {
-    const targetOrigin = new URL(target.url).origin;
+    const targetOrigin = assertAllowedUrl(target.url).origin;
     const accept = target.accept ?? ((landed: URL) => landed.origin === targetOrigin);
     const current = parseUrl(this.landedUrl);
     if (current && accept(current)) return current;
@@ -221,6 +242,16 @@ export class ChromeSession {
     this.landedUrl = await this.locationHref();
 
     const landed = parseUrl(this.landedUrl);
+    if (landed) {
+      try {
+        assertAllowedUrl(landed);
+      } catch {
+        this.landedUrl = "";
+        throw new Error(
+          `La page a été redirigée hors de Leclerc Drive (${landed.host}) : le serveur s'arrête là.`,
+        );
+      }
+    }
     if (!landed || !accept(landed)) {
       throw new Error(
         `La page Leclerc Drive a atterri sur ${landed ? landed.origin + landed.pathname : "une page vide"} ` +
@@ -261,7 +292,7 @@ export class ChromeSession {
     const landed = await this.ensurePage(page);
 
     const args = {
-      url: new URL(url, landed).href,
+      url: assertAllowedUrl(new URL(url, landed)).href,
       init: {
         method: opts.method || "GET",
         headers: opts.headers || {},

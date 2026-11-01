@@ -14,6 +14,7 @@
  */
 
 import { PageResponse } from "../browser.js";
+import { isStoreHost, isStoreId } from "../hosts.js";
 import { PageHttp } from "./http.js";
 
 const API_BASE =
@@ -77,8 +78,11 @@ export class StoreLocator {
 
     const out: FoundStore[] = [];
     for (const p of near.points ?? []) {
+      // Only stores on a known shopping host, with plain numeric ids, are kept:
+      // everything here ends up in URLs.
       const host = hostOf(p.urlSiteCourse || p.urlBase);
-      if (!host || p.noPL === undefined) continue;
+      if (!isStoreHost(host) || p.noPL === undefined || !isStoreId(String(p.noPL))) continue;
+      if (p.noPR !== undefined && !isStoreId(String(p.noPR))) continue;
       out.push({
         storeId: String(p.noPL),
         noPR: String(p.noPR ?? p.noPL),

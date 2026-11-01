@@ -12,6 +12,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { LeclercConfig } from "./config.js";
+import { isStoreHost, isStoreId } from "./hosts.js";
 
 export interface StoreSelection {
   /** Canonical store number (noPL), e.g. "053701". Used in URLs and payloads. */
@@ -46,6 +47,9 @@ export class StoreState {
   }
 
   set(selection: StoreSelection): void {
+    if (!isValidSelection(selection)) {
+      throw new Error(`Magasin invalide : ${selection.storeId} @ ${selection.host}.`);
+    }
     this.selection = selection;
     writePersisted(this.file, selection);
   }
@@ -61,17 +65,23 @@ function readPersisted(file: string): StoreSelection | null {
     if (!existsSync(file)) return null;
     const o = JSON.parse(readFileSync(file, "utf8"));
     if (o && typeof o.storeId === "string" && typeof o.host === "string") {
-      return {
+      const selection: StoreSelection = {
         storeId: o.storeId,
         noPR: typeof o.noPR === "string" ? o.noPR : o.storeId,
         host: o.host,
         name: typeof o.name === "string" ? o.name : undefined,
       };
+      if (isValidSelection(selection)) return selection;
+      console.error(`mcp-leclerc-drive: ${file} ignoré (magasin ou hôte invalide).`);
     }
   } catch {
     /* ignore corrupt/unreadable config — fall back to defaults */
   }
   return null;
+}
+
+function isValidSelection(s: StoreSelection): boolean {
+  return isStoreId(s.storeId) && isStoreId(s.noPR) && isStoreHost(s.host);
 }
 
 function writePersisted(file: string, selection: StoreSelection): void {

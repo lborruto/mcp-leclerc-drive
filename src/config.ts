@@ -9,7 +9,9 @@
  */
 
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+
+import { isStoreId, parseStoreHost } from "./hosts.js";
 
 export interface LeclercConfig {
   /** Default store id, e.g. "053701". Overridden at runtime by set_store. */
@@ -54,15 +56,28 @@ function boolEnv(name: string, fallback: boolean): boolean {
 const DEFAULT_STORE_ID = "053701";
 const DEFAULT_HOST = "fd9-courses.leclercdrive.fr";
 
+/** Default debug port: not Chrome's usual 9222, which other tools tend to use. */
+const DEFAULT_CHROME_PORT = 9333;
+
+/** Read and validate the configuration. Throws on a value that must not be used. */
 export function loadConfig(): LeclercConfig {
+  const storeId = process.env.LECLERC_STORE_ID?.trim() || DEFAULT_STORE_ID;
+  if (!isStoreId(storeId)) {
+    throw new Error(`LECLERC_STORE_ID invalide : « ${storeId} » (attendu : des chiffres, ex. 053701).`);
+  }
+  const rawHost = process.env.LECLERC_HOST?.trim();
+  const port = intEnv("LECLERC_CHROME_PORT", DEFAULT_CHROME_PORT);
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+    throw new Error(`LECLERC_CHROME_PORT invalide : ${port} (attendu : 1024 à 65535).`);
+  }
   return {
-    storeId: process.env.LECLERC_STORE_ID?.trim() || DEFAULT_STORE_ID,
-    host: process.env.LECLERC_HOST?.trim() || DEFAULT_HOST,
+    storeId,
+    host: rawHost ? parseStoreHost(rawHost) : DEFAULT_HOST,
     chromePath: process.env.LECLERC_CHROME_PATH?.trim() || undefined,
-    chromeProfileDir:
-      process.env.LECLERC_CHROME_PROFILE_DIR?.trim() ||
-      join(homedir(), ".mcp-leclerc-drive", "chrome"),
-    chromePort: intEnv("LECLERC_CHROME_PORT", 9222),
+    chromeProfileDir: resolve(
+      process.env.LECLERC_CHROME_PROFILE_DIR?.trim() || join(homedir(), ".mcp-leclerc-drive", "chrome"),
+    ),
+    chromePort: port,
     headless: boolEnv("LECLERC_HEADLESS", false),
     minIntervalMs: intEnv("LECLERC_MIN_INTERVAL_MS", 1000),
     jitterMs: intEnv("LECLERC_JITTER_MS", 400),

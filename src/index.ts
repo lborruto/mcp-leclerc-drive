@@ -19,6 +19,7 @@ import { z } from "zod";
 
 import { ChromeSession } from "./browser.js";
 import { loadConfig } from "./config.js";
+import { parseStoreHost } from "./hosts.js";
 import { LeclercClient } from "./leclerc/client.js";
 import { PageHttp } from "./leclerc/http.js";
 import { FoundStore, StoreLocator } from "./leclerc/locator.js";
@@ -208,11 +209,18 @@ server.tool(
   "Sélectionne le magasin actif (et le mémorise pour les prochaines sessions). " +
     "Utilise l'id renvoyé par find_stores.",
   {
-    store_id: z.string().describe("Identifiant magasin (champ id de find_stores)"),
+    store_id: z
+      .string()
+      .regex(/^\d{1,10}$/, "un identifiant magasin est fait de chiffres")
+      .describe("Identifiant magasin (champ id de find_stores)"),
     host: z
       .string()
+      .max(100)
       .optional()
-      .describe("Host backend (optionnel) si le magasin n'a pas été trouvé via find_stores"),
+      .describe(
+        "Hôte du magasin, fdN-courses.leclercdrive.fr (optionnel, si le magasin n'a pas été " +
+          "trouvé via find_stores)",
+      ),
   },
   async ({ store_id, host }) => {
     try {
@@ -227,7 +235,7 @@ server.tool(
       }
       const selection = found
         ? { storeId: found.storeId, noPR: found.noPR, host: found.host, name: found.name }
-        : { storeId: store_id, noPR: store_id, host: host as string };
+        : { storeId: store_id, noPR: store_id, host: parseStoreHost(host as string) };
       store.set(selection);
       return asText(
         `Magasin actif : ${selection.name ?? selection.storeId} ` +
