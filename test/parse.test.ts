@@ -103,6 +103,11 @@ test("decodeEntities decodes numeric and named entities", () => {
   assert.equal(decodeEntities("Caf&#233; &amp; th&#xE9; &quot;x&quot; &#39;y&#39;&nbsp;z"), `Café & thé "x" 'y' z`);
 });
 
+test("decodeEntities decodes once and never throws", () => {
+  assert.equal(decodeEntities("&#38;lt;b&#38;gt; &amp;amp;"), "&lt;b&gt; &amp;");
+  assert.equal(decodeEntities("x&#99999999;y &#0; &bogus;"), "x&#99999999;y &#0; &bogus;");
+});
+
 test("assertStorePage accepts a store page and explains block pages", () => {
   assert.doesNotThrow(() => assertStorePage(SEARCH_PAGE));
   assert.throws(() => assertStorePage("<html>Votre session a expiré</html>"), /Session Leclerc Drive expirée/);

@@ -55,6 +55,8 @@ release tarball or a clone, never `npx mcp-leclerc-drive` (that is upstream's 0.
   the wrong host.
 - Calls could hang forever on a closed Chrome window or a request Chrome never answered.
 - `set_store 027411` could pick a relay instead of the drive.
+- Product labels were HTML-decoded in several passes (`&#38;lt;` became `<`), and an
+  out-of-range numeric entity threw and broke the whole search (found by CodeQL).
 
 ### Security
 
