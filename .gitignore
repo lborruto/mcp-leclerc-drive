@@ -10,3 +10,4 @@ captures/
 *.har
 secrets.json
 .worktrees/
+build-test/
