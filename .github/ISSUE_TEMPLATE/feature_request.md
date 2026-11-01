@@ -1,17 +1,19 @@
 ---
-name: Feature request / new endpoint
-about: Suggest a new tool, store support, or capability
-title: "[feature] "
+name: Feature request
+about: Something mcp-leclerc-drive should do
 labels: enhancement
 ---
 
-**What would you like to be able to do?**
-e.g. "book a delivery slot", "support store 0XXXXX", "import a saved list".
+**The moment** (what you are trying to do with your groceries, as in "add last week's list again
+in one go")
 
-**Does it need a new Leclerc Drive endpoint?**
-If you've captured it (DevTools → Network), paste the request/response shape
-here — see CONTRIBUTING.md ("Reverse-engineering a new endpoint").
-⚠️ Strip cookie values and any personal data before pasting.
+**What the server should do** (a new tool, or a change to an existing one's answer)
 
-**Anything else**
-Context, mockups, links.
+**Why the existing tools do not cover it** (`find_stores`, `set_store`, `search_product`,
+`add_to_cart`, `add_many`, `update_quantity`, `remove_from_cart`, `get_cart`…)
+
+Keep in mind what mcp-leclerc-drive will not do: validate the cart, pick a slot, place an order
+or pay (you check out yourself on the site), handle your password, cookies or 2FA codes, or talk
+to any host but Leclerc Drive's own (see SECURITY.md). If the feature needs a Leclerc Drive
+request the server does not make yet, describe it in words: do not paste captures, cookies or
+anything from your account.
