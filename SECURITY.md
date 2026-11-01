@@ -38,24 +38,25 @@ by E.Leclerc, DataDome or Google.
   the server opens. The session lives in that dedicated Chrome profile (by default
   `~/.mcp-leclerc-drive/chrome`), not in the server: requests run as `fetch` inside the page, so
   the browser attaches its own cookies. The server refuses to run Chrome on your main Chrome
-  profile.
-  <!-- TODO(main): confirm the profile default and the env var that overrides it
-  (LECLERC_CHROME_PROFILE_DIR today), and how "main profile" is detected. -->
+  profile: `LECLERC_CHROME_PROFILE_DIR` (which moves the dedicated profile) is refused if it is,
+  or is inside, the default user-data folder of Chrome (stable, Beta, Dev, Canary), Chromium,
+  Edge or Brave on macOS, Linux or Windows, after resolving links and Windows short names.
 - **The debugging port is open to your user account.** Chrome is started with a remote debugging
   port (9333 by default, `LECLERC_CHROME_PORT`), which Chrome binds to `127.0.0.1`. While that
   Chrome runs, any program running as your user on this machine can connect to the port and drive
   that Chrome profile, which is logged into Leclerc Drive. The server writes a lock file in the
-  profile (Chrome's process id and port) and refuses to attach to a Chrome on that port that it did
-  not start: no lock file, another port, a process that is gone, or Chrome's own
-  `DevToolsActivePort` file not matching. Close that Chrome window when you are done to close the
-  port.
+  profile (Chrome's process id, the port, and the browser's DevTools id, random for each Chrome
+  run) and refuses to attach to a Chrome on that port that it did not start: no lock file,
+  another port, a process that is gone, or a Chrome reporting another DevTools id. It works in its
+  own tab, never in one you are using, and checks inside the page that the tab is still on Leclerc
+  Drive before each request. Close that Chrome window when you are done to close the port.
 - **Nothing past the cart.** No tool validates the cart, picks a slot, places an order or pays:
   the server fills the cart, you check out yourself on the site. Cart changes are real: they
   change your Leclerc Drive cart, the one you see on the site.
 - **Paced like a person.** Requests go one at a time, with a minimum interval and random jitter
-  between them, and back off on HTTP 403 and 429. Bulk adds (`add_many`) are capped.
-  <!-- TODO(main): the add_many cap and the throttle defaults (LECLERC_MIN_INTERVAL_MS,
-  LECLERC_JITTER_MS, LECLERC_MAX_RETRIES), if this document should quote them. -->
+  between them (1 s plus up to 0.4 s by default), and back off on HTTP 403 and 429 (3 retries).
+  `add_many` takes 30 products at most and stops at the first sign of a block instead of carrying
+  on against a blocked site.
 
 ### What it does not protect against
 

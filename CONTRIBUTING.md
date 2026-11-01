@@ -26,9 +26,26 @@ WebSocket.
 `node /path/to/mcp-leclerc-drive/dist/index.js` (the README shows the client configuration). The
 server reads its settings from `LECLERC_*` environment variables.
 
-<!-- TODO(main): the final list of LECLERC_* variables and their defaults (store, host, Chrome
-path, profile directory, port 9333, headless, throttle knobs), or a pointer to the README section
-that lists them. -->
+### Configuration
+
+All optional, read once at start (`src/config.ts`); an invalid value stops the server with a
+message rather than being ignored.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `LECLERC_STORE_ID` | `053701` | Store id (digits) used until `set_store` picks one. |
+| `LECLERC_HOST` | `fd9-courses.leclercdrive.fr` | That store's host; must be an `fdN-courses.leclercdrive.fr`. |
+| `LECLERC_CHROME_PATH` | Chrome's usual path for the OS | The Chrome binary. |
+| `LECLERC_CHROME_PROFILE_DIR` | `~/.mcp-leclerc-drive/chrome` | The dedicated profile. A browser's main profile is refused. |
+| `LECLERC_CHROME_PORT` | `9333` | Chrome's debug port, 1024 to 65535. |
+| `LECLERC_HEADLESS` | `false` | Headless Chrome. DataDome tends to block it; for experiments only. |
+| `LECLERC_MIN_INTERVAL_MS` | `1000` | Minimum gap between two requests. |
+| `LECLERC_JITTER_MS` | `400` | Random extra gap, 0 to this. |
+| `LECLERC_MAX_RETRIES` | `3` | Retries on HTTP 403/429. |
+| `LECLERC_BACKOFF_BASE_MS` | `1500` | First retry delay, doubled each time. |
+
+The chosen store is saved in `~/.mcp-leclerc-drive/config.json` and wins over the two store
+variables; a saved host outside the allowlist is ignored.
 
 ## Checks
 
@@ -44,15 +61,23 @@ the release tarball (`scripts/check-pack.mjs`), `npm audit` on the runtime depen
 over the whole history, actionlint on the workflows and CodeQL. The one check to require is
 "CI result"; a docs-only pull request skips the build jobs and still passes it.
 
-<!-- TODO(main): where the unit tests live (test/ or next to the sources) and anything they
-need, e.g. a fake CDP endpoint. -->
+The tests live in `test/` and need nothing but Node: `npm test` builds, compiles `src/` and
+`test/` to `build-test/`, and runs Node's test runner. Most of them run the real `ChromeSession`,
+client and locator against `test/fake-chrome.ts`, a simulated browser that answers the CDP calls:
+navigations follow redirects, and the script the server sends into the page really runs (in a
+`node:vm` sandbox) against a fetch that is same-origin only, like Chrome without CORS. A site is a
+small function from URL to response (`test/cart.test.ts` has a whole simulated cart). The contract
+test starts `dist/index.js` over stdio and checks the exact tool list. A bug fix comes with the
+test that fails without it.
 
 Live tests against Leclerc Drive are for changes to how the server talks to the site, and only
 with your own logged-in session: `npm run smoke` adds one product to your real cart, reads it,
 changes its quantity and removes it. Read `scripts/smoke-test.mjs` before running it, and keep it
 to a few requests.
 
-<!-- TODO(main): confirm npm run smoke stays, and what it does after the add_many change. -->
+`npm run smoke [term]` reads the cart, searches, picks an available product that is not in it,
+adds one twice, sets it to one, removes it, and reads the cart again: about ten requests, and the
+cart ends as it started.
 
 ## Principles
 
@@ -116,8 +141,12 @@ issue.
 - **`scripts/`**: `check-hosts.mjs` and `check-pack.mjs` (CI checks, no dependency) and
   `smoke-test.mjs` (the live test).
 
-<!-- TODO(main): the allowlist, lock file and profile checks once they land (which file holds
-them). -->
+- **`src/hosts.ts`**: the host allowlist and store id rules. **`src/chrome-profile.ts`**: the
+  main-profile guard and the lock (PID, port, the browser's DevTools id) that keeps the server off
+  any Chrome it did not start. **`src/errors.ts`**: `BlockingError`, for failures every following
+  request would hit (a batch stops there).
+- **`src/leclerc/http.ts`**: the one way requests leave: shared throttle, 403/429 backoff, one
+  re-navigation on "Failed to fetch" or a tab found elsewhere.
 
 ## Releasing
 
@@ -131,5 +160,5 @@ them). -->
    release from the changelog section, with the tarball attached. A tag without its section, or
    with another version in `package.json`, fails on purpose. Nothing goes to npm.
 
-<!-- TODO(main): server.json still names io.github.skunkobi/leclerc-drive and an npm package;
-decide whether it stays, and bump its version here too if so. -->
+There is no MCP registry manifest (`server.json`) and no npm package: the release tarball and the
+repository are the only ways to install.

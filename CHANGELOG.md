@@ -12,6 +12,62 @@ published them to npm. This repository continues from 0.3.0.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-01
+
+First release of this continuation: the two open upstream issues fixed, the Chrome session
+hardened, `add_many`, more product details, and tests, CI and signed releases. Install from the
+release tarball or a clone, never `npx mcp-leclerc-drive` (that is upstream's 0.3.0 on npm).
+
+### Added
+
+- `add_many`: up to 30 products in one call, one after another; one failure does not stop the
+  rest, a block (DataDome, expired session, Chrome gone) does. Each item's result and the final
+  cart.
+- Search results show the pack size, the product family, the customer rating, instant-discount
+  offers and what is already in the cart. Only fields the site really sends: there is no brand or
+  origin field, so none is shown.
+- Tool titles and read-only / destructive hints, and server instructions for the model.
+- Unit tests on a simulated browser and cart, a contract test on the tool list, and CI on Linux,
+  macOS and Windows with gitleaks, CodeQL, npm audit and a host-allowlist check of the code.
+  Releases come with build-provenance attestations.
+
+### Changed
+
+- `add_to_cart` adds on top of what the cart holds (« add 2 » to a line of 2 makes 4; it used to
+  stay at 2). `update_quantity` sets an exact quantity.
+- After a change, the tools report the changed line and the cart totals as Leclerc confirmed
+  them, and say when Leclerc kept less than asked. They used to list one line with the whole
+  cart's total.
+- Chrome's debug port is 9333 by default (was 9222).
+- The server works in its own tab, closed when the MCP client goes away.
+- `find_stores` gives relays their own id (`noPL-noPR`): they share their drive's.
+- Store client and store locator share one request queue.
+
+### Fixed
+
+- Stores whose host redirects to another shard: every call failed with « Failed to fetch »
+  ([upstream #1](https://github.com/skunkobi/mcp-leclerc-drive/issues/1)).
+- The first call after about 16 idle minutes failed with « Failed to fetch »
+  ([upstream #2](https://github.com/skunkobi/mcp-leclerc-drive/issues/2)).
+- Search results included the products already in the cart.
+- An unknown product id was reported as added.
+- Two cart changes at the same time could lose one; a `set_store` during a request could save
+  the wrong host.
+- Calls could hang forever on a closed Chrome window or a request Chrome never answered.
+- `set_store 027411` could pick a relay instead of the drive.
+
+### Security
+
+- Allowlist of Leclerc Drive hosts, checked before every navigation and request, on the page
+  actually reached after redirects, inside the page for redirected requests, and on every host
+  from outside the code.
+- Never attaches to a Chrome it did not start (lock with PID, port and DevTools id); never runs
+  on your main Chrome, Chromium, Edge or Brave profile.
+- Checks inside the page that the tab is still on Leclerc Drive before each request.
+- Dependencies updated past their advisories (MCP SDK 1.32, zod 4); `dist/` emptied before each
+  build, so no leftover file (such as 0.3.0's `dist/auth/cookies.js`) ships.
+- Never published to npm (`private`).
+
 ## [0.3.0] - 2026-07-11
 
 Last release by skunkobi. Every request now runs inside a real Chrome driven over the Chrome

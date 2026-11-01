@@ -28,20 +28,33 @@ Scope: search products and fill the cart from an MCP client. Nothing past the ca
 
 | File | Role |
 | --- | --- |
-| `index.ts` | stdio MCP server, tool declarations (zod), text formatting. stdout is the MCP channel: logs go to stderr only. |
-| `browser.ts` | `ChromeSession`: launches Chrome, native-WebSocket CDP, `fetch()` run through `Runtime.evaluate` in the tab. |
-| `leclerc/client.ts` | Search (scrapes `objElement` records from the HTML), cart mutations (`panier.aspx?op=1`), cart read (`lstProduits`). |
+| `index.ts` | stdio MCP server: tool declarations (zod, annotations), server instructions, shutdown. stdout is the MCP channel: logs go to stderr only. |
+| `format.ts` | French text rendering of tool results. |
+| `browser.ts` | `ChromeSession`: launches/reuses Chrome, own tab, native-WebSocket CDP with timeouts, `fetch()` run in the page (origin + redirect checks inside). |
+| `chrome-profile.ts` | Main-profile guard; lock (PID, port, DevTools browser id) so the server never attaches to a Chrome it did not start. |
+| `hosts.ts` | Host allowlist, store host/id rules. |
+| `errors.ts` | `BlockingError`: failures every following request would hit. |
+| `leclerc/http.ts` | The one request path: shared throttle, 403/429 backoff, one re-navigation on "Failed to fetch" / stale tab. |
+| `leclerc/client.ts` | Search, cart read, cart changes (exclusive, one store snapshot per operation), `add_many`. |
+| `leclerc/parse.ts` | Pure parsing of pages and cart events. |
 | `leclerc/locator.ts` | `find_stores` through `api-recherchemagasins` (fetched from a `www.leclercdrive.fr` page). |
-| `leclerc/throttle.ts` | Serialized queue + min interval + jitter + 403/429 backoff. |
+| `leclerc/throttle.ts` | Serialized queue + min interval + jitter + backoff. |
 | `store.ts` | Active store, persisted to `~/.mcp-leclerc-drive/config.json`. |
-| `config.ts` | `LECLERC_*` environment variables. |
+| `config.ts` | `LECLERC_*` environment variables, validated. |
+
+Tests: `test/` (`npm test`), mostly against `test/fake-chrome.ts`. Live checks: `npm run smoke`.
 
 API reference: `docs/api-capture.md`.
 
 ## Known traps
 
-- One shared CDP tab: the store client and the locator navigate it back and forth between the
+- One tab per server: the store client and the locator navigate it back and forth between the
   store host and `www.leclercdrive.fr`.
+- Every page carries the cart (`lstProduits`): cut it out before scanning for search results.
+- An unknown product id comes back as a line at 0, not an error.
+- Relays share their drive's `noPL`; `find_stores` keys them `noPL-noPR`.
+- Chrome does not write `DevToolsActivePort` for a fixed port (macOS, Chrome 154): ownership is
+  proven by the DevTools browser id in the lock.
 - `iQuantite` is an **absolute target quantity**, not a delta.
 - The path slug (`magasin-053701-053701-La-Ville-aux-Dames`) is cosmetic: only the host matters.
 - The locator can return a generic host (`fd1-courses`) that 302s to the real shard, so several
