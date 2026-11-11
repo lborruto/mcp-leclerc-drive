@@ -182,20 +182,32 @@ export function extractCartTotal(html: string): string | undefined {
  * the smallest enclosing `{...}` object, skipping any that fail to parse.
  */
 export function scanProductRecords(raw: string): RawProduct[] {
-  const out: RawProduct[] = [];
+  return scanProducts(raw).records;
+}
+
+/**
+ * Same scan, with the number of `iIdProduit` occurrences that could not be
+ * read as a record: when there are some and no record at all, the page's
+ * format changed, which is not the same as "nothing found".
+ */
+export function scanProducts(raw: string): { records: RawProduct[]; unreadable: number } {
+  const records: RawProduct[] = [];
+  let unreadable = 0;
   const re = /"iIdProduit"\s*:/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(raw))) {
     const obj = smallestEnclosingObject(raw, m.index);
-    if (obj) {
-      try {
-        out.push(JSON.parse(obj) as RawProduct);
-      } catch {
-        /* skip records with function members etc. */
-      }
+    if (!obj) {
+      unreadable++;
+      continue;
+    }
+    try {
+      records.push(JSON.parse(obj) as RawProduct);
+    } catch {
+      unreadable++; // e.g. a record with function members
     }
   }
-  return out;
+  return { records, unreadable };
 }
 
 function smallestEnclosingObject(raw: string, at: number): string | null {

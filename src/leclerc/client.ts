@@ -15,7 +15,7 @@
 
 import { PageResponse, PageTarget } from "../browser.js";
 import { storePath } from "../config.js";
-import { BlockingError, isBlocking } from "../errors.js";
+import { BlockingError, isBlocking, SiteChangedError } from "../errors.js";
 import { isStoreHost } from "../hosts.js";
 import { StoreSelection, StoreState } from "../store.js";
 import { AddManyItemResult, AddManyResult, Cart, CartChange, CartItem, Product } from "../types.js";
@@ -30,6 +30,7 @@ import {
   RawProduct,
   round2,
   scanProductRecords,
+  scanProducts,
   withoutCartContext,
 } from "./parse.js";
 import { PageHttp } from "./http.js";
@@ -139,12 +140,21 @@ export class LeclercClient {
     // context every page carries is cut out first: cart lines are not results.
     const seen = new Set<string>();
     const products: Product[] = [];
-    for (const rp of scanProductRecords(withoutCartContext(html))) {
+    const { records, unreadable } = scanProducts(withoutCartContext(html));
+    for (const rp of records) {
       if (rp.sType !== "Produit") continue;
       const id = String(rp.iIdProduit);
       if (seen.has(id)) continue;
       seen.add(id);
       products.push(mapProduct(rp));
+    }
+    // Product records that cannot be read, or that all come out without a
+    // price: the page changed. An empty list would read as "no such product".
+    if (
+      (products.length === 0 && unreadable > 0) ||
+      (products.length > 0 && products.every((p) => p.price === 0))
+    ) {
+      throw new SiteChangedError("sa page de recherche");
     }
     return products;
   }
@@ -299,6 +309,11 @@ export class LeclercClient {
           num(rp.rTotalAPayer) ?? parseEuro(rp.sTotalAPayer) ?? round2(product.price * qty);
         items.push({ product, quantity: qty, lineTotal });
       }
+    }
+    // The light summary lists lines the full list did not give: the format changed.
+    const light = extractArrayNamed(html, "lstProduitsLight");
+    if (items.length === 0 && light && scanProductRecords(light).some((r) => (num(r.iQtePanier) ?? 0) > 0)) {
+      throw new SiteChangedError("le panier de ses pages");
     }
     const grandTotal =
       parseEuro(extractCartTotal(html)) ?? round2(items.reduce((s, i) => s + i.lineTotal, 0));
