@@ -206,3 +206,20 @@ set_store switch to any drive) — see below.
 - **Reverse-engineer the "switch drive" call** so `set_store` can rebind the
   session to any drive server-side (today it must match the browser's drive).
 - Checkout / slot-booking flow (out of scope).
+
+## Seen live on 2026-11-11 (store 027411)
+
+- **Zero-result search.** `recherche.aspx` with a query that matches nothing still carries six
+  `sType: "Produit"` records, in a widget whose id contains `ucZeroResultat` (suggestions). A page
+  with results has no `ucZeroResultat` at all. The client returns no product for such a page.
+- **Login state.** Store pages carry `"fClientConnecte":true` when a customer is logged in.
+- **The session's drive.** A navigation to `https://www.leclercdrive.fr/` lands on
+  `/?mag=<noPL>-<noPR>&sRedirect=false` for a session that has a drive. The locator reads it from
+  the page it already opens.
+- **Offers.** `GET .../promotions.aspx` is a store page of about 24 MB with some 1 800 product
+  records in the same `objElement` shape as a search (`iNbTotalProduits`, `iNbPage` are present but
+  everything came in one page).
+- **Aisles.** `GET .../rayon-<iIdRayon>-<slug>.aspx` returns the aisle's products in the same
+  shape (156 for the one tried). The aisle menu itself is not in the page (client-side templates
+  only), so there is no list of aisle ids to browse from; not exposed as a tool.
+- No `iIdProduit` occurrence was unreadable on any of these pages.

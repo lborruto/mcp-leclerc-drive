@@ -52,9 +52,10 @@ function sorted(products: Product[], sort: SearchSort): Product[] {
 export function formatSearch(
   query: string,
   products: Product[],
-  opts: { limit: number; onlyAvailable: boolean; sort?: SearchSort },
+  opts: { limit: number; onlyAvailable: boolean; sort?: SearchSort; what?: string },
 ): string {
-  if (products.length === 0) return `Aucun produit trouvé pour « ${query} ».`;
+  const what = opts.what ?? "produit(s)";
+  if (products.length === 0) return `Aucun ${what.replace("(s)", "")} trouvé pour « ${query} ».`;
   const pool = opts.onlyAvailable ? products.filter((p) => p.available) : products;
   if (pool.length === 0) return `Aucun produit disponible pour « ${query} » (${products.length} indisponible(s)).`;
   const sort = opts.sort ?? "pertinence";
@@ -63,8 +64,8 @@ export function formatSearch(
   const shown = ordered.slice(0, opts.limit);
   const head =
     shown.length < ordered.length
-      ? `${ordered.length} produit(s) pour « ${query} »${SORT_LABEL[sort]}, les ${shown.length} premiers :`
-      : `${ordered.length} produit(s) pour « ${query} »${SORT_LABEL[sort]} :`;
+      ? `${ordered.length} ${what} pour « ${query} »${SORT_LABEL[sort]}, les ${shown.length} premiers :`
+      : `${ordered.length} ${what} pour « ${query} »${SORT_LABEL[sort]} :`;
   const more = shown.length < ordered.length ? `\n… ${ordered.length - shown.length} autre(s) : précise la recherche ou augmente limit.` : "";
   return `${head}\n${shown.map(formatProduct).join("\n")}${more}`;
 }
@@ -112,15 +113,41 @@ export function formatAddMany(r: AddManyResult): string {
   return `${ok}/${r.results.length} ajout(s) réussi(s) :\n${lines.join("\n")}\n${hint}\n${cart}`;
 }
 
-export function formatStores(query: string, stores: FoundStore[]): string {
+export function formatStores(
+  query: string,
+  stores: FoundStore[],
+  session?: { storeId: string; noPR: string },
+): string {
+  const isSession = (s: FoundStore) => session !== undefined && s.storeId === session.storeId && s.noPR === session.noPR;
   const lines = stores.map((s) => {
     const dist = s.distanceKm !== undefined ? ` ${s.distanceKm.toFixed(1)} km` : "";
-    return `• ${s.name} — ${s.serviceType}${dist} (id=${s.key})`;
+    return `• ${s.name} — ${s.serviceType}${dist} (id=${s.key})${isSession(s) ? " ← celui de la fenêtre Chrome" : ""}`;
   });
+  const hint = !session
+    ? ""
+    : stores.some(isSession)
+      ? "\nLa fenêtre Chrome du serveur est déjà sur le drive marqué : c'est celui à choisir, sauf pour en changer."
+      : `\nLa fenêtre Chrome du serveur est sur un autre drive (id=${session.storeId}) : pour faire ` +
+        `les courses dans un drive de cette liste, choisis-le aussi dans cette fenêtre.`;
   return (
     `Drives autour de « ${query} » :\n${lines.join("\n")}\n\n` +
-    `Pour en choisir un : set_store avec son id. Les courses fonctionnent sur les « drive ».`
+    `Pour en choisir un : set_store avec son id. Les courses fonctionnent sur les « drive ».${hint}`
   );
+}
+
+/** Lowercase, without accents: « Crème » matches "creme". */
+function plain(s: string): string {
+  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+/** Products on offer whose label or family holds every word of `query` (all of them without a query). */
+export function filterOffers(products: Product[], query: string): Product[] {
+  const words = plain(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return products;
+  return products.filter((p) => {
+    const text = plain(`${p.label} ${p.family ?? ""}`);
+    return words.every((w) => text.includes(w));
+  });
 }
 
 export function formatUsuals(storeId: string, usuals: Usual[]): string {

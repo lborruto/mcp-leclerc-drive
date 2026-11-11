@@ -33,6 +33,35 @@ export function assertStorePage(html: string): void {
   );
 }
 
+/**
+ * A search with no result still carries product records: the "zero result"
+ * panel suggests a few unrelated products (seen live 2026-11-11). They are not
+ * results.
+ */
+export function isZeroResultPage(html: string): boolean {
+  return html.includes("ucZeroResultat");
+}
+
+/** Whether the page says a customer is logged in (`fClientConnecte`); undefined if it does not say. */
+export function loggedInFlag(html: string): boolean | undefined {
+  const m = /"fClientConnecte"\s*:\s*(true|false)/.exec(html);
+  return m ? m[1] === "true" : undefined;
+}
+
+/**
+ * The drive a Leclerc session is on, from where www.leclercdrive.fr lands:
+ * the site sends a visitor who has a drive to `/?mag=<noPL>-<noPR>` (seen live
+ * 2026-11-11).
+ */
+export function sessionDriveFromUrl(url: string): { storeId: string; noPR: string } | undefined {
+  try {
+    const m = /^(\d{1,10})-(\d{1,10})$/.exec(new URL(url).searchParams.get("mag") ?? "");
+    return m ? { storeId: m[1], noPR: m[2] } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface RawProduct {
   iIdProduit: number | string;
   sLibelleLigne1?: string;

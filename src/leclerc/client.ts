@@ -24,6 +24,8 @@ import {
   CartEvent,
   extractArrayNamed,
   extractCartTotal,
+  isZeroResultPage,
+  loggedInFlag,
   mapProduct,
   num,
   parseEuro,
@@ -39,6 +41,8 @@ import { PageHttp } from "./http.js";
 const ACTION_ADD = 1; // add / increase to target qty
 const ACTION_SUB = 2; // decrease / remove (qty 0)
 
+
+const OFFERS_TTL_MS = 10 * 60 * 1000;
 
 /** Query token that returns no search results, so a fetched page carries only cart data. */
 const NO_MATCH_QUERY = "zzzznomatchzzz";
@@ -61,6 +65,21 @@ export class LeclercClient {
   labelOf(productId: string): string | undefined {
     return this.labels.get(productId);
   }
+
+  /**
+   * Whether the last store page read said a customer is logged in. False means
+   * the cart being filled is a visitor's, not the user's account.
+   */
+  loggedIn: boolean | undefined;
+
+  /** Every store page read goes through here: block pages refused, login state noted. */
+  private readStorePage(html: string): void {
+    assertStorePage(html);
+    this.loggedIn = loggedInFlag(html) ?? this.loggedIn;
+  }
+
+  /** The offers page is heavy (about 24 MB): kept a few minutes per store. */
+  private offersCache: { key: string; at: number; products: Product[] } | undefined;
 
   /** Cart operations, one at a time: a read-then-write must not interleave with another. */
   private cartQueue: Promise<unknown> = Promise.resolve();
@@ -144,8 +163,33 @@ export class LeclercClient {
     const res = await this.send(sel, "GET", this.searchUrl(sel, query), { Accept: "text/html" });
     if (!res.ok) throw new Error(`Search HTTP ${res.status} (${res.statusText})`);
     const html = await res.text();
-    assertStorePage(html);
+    this.readStorePage(html);
+    if (isZeroResultPage(html)) return [];
+    return this.pageProducts(html, "sa page de recherche");
+  }
 
+  /**
+   * The products currently on offer in the store, from its promotions page
+   * (one heavy request, kept 10 minutes).
+   */
+  async offers(): Promise<Product[]> {
+    const sel = this.store.current();
+    const key = `${sel.storeId}-${sel.noPR}`;
+    const cached = this.offersCache;
+    if (cached && cached.key === key && Date.now() - cached.at < OFFERS_TTL_MS) return cached.products;
+    const res = await this.send(sel, "GET", `/${storePath(sel.storeId, sel.noPR)}/promotions.aspx`, {
+      Accept: "text/html",
+    });
+    if (!res.ok) throw new Error(`Promotions HTTP ${res.status} (${res.statusText})`);
+    const html = await res.text();
+    this.readStorePage(html);
+    const products = this.pageProducts(html, "sa page de promotions");
+    this.offersCache = { key, at: Date.now(), products };
+    return products;
+  }
+
+  /** The product records of a page (search, offers), without the cart's. */
+  private pageProducts(html: string, what: string): Product[] {
     // The search page embeds product data inside `initOptions(...)` widget
     // calls as `{objContenu:{lstElements:[{objElement:{...iIdProduit...}}]}}`.
     // Each `objElement` is pure JSON, so we scan the page for every product
@@ -167,7 +211,7 @@ export class LeclercClient {
       (products.length === 0 && unreadable > 0) ||
       (products.length > 0 && products.every((p) => p.price === 0))
     ) {
-      throw new SiteChangedError("sa page de recherche");
+      throw new SiteChangedError(what);
     }
     for (const p of products) this.remember(p);
     return products;
@@ -306,7 +350,7 @@ export class LeclercClient {
     const res = await this.send(sel, "GET", this.searchUrl(sel, NO_MATCH_QUERY), { Accept: "text/html" });
     if (!res.ok) throw new Error(`Cart read HTTP ${res.status} (${res.statusText})`);
     const html = await res.text();
-    assertStorePage(html);
+    this.readStorePage(html);
 
     const arr = extractArrayNamed(html, "lstProduits");
     const items: CartItem[] = [];

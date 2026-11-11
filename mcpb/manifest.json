@@ -32,6 +32,7 @@
     { "name": "set_store", "description": "Choisir le drive (mémorisé)" },
     { "name": "get_store", "description": "Afficher le drive choisi et l'état de Chrome" },
     { "name": "search_product", "description": "Chercher des produits : prix, prix au kilo, format, avis, stock" },
+    { "name": "browse_offers", "description": "Voir les produits en promotion dans votre drive" },
     { "name": "add_to_cart", "description": "Ajouter un produit au panier" },
     { "name": "add_many", "description": "Ajouter jusqu'à 30 produits en une fois" },
     { "name": "update_quantity", "description": "Fixer la quantité d'une ligne du panier" },

@@ -60,6 +60,10 @@ API reference: `docs/api-capture.md`.
 - Chrome does not write `DevToolsActivePort` for a fixed port (macOS, Chrome 154): ownership is
   proven by the DevTools browser id in the lock.
 - `iQuantite` is an **absolute target quantity**, not a delta.
+- A search with no result still carries products: the `ucZeroResultat` panel's suggestions.
+- `www.leclercdrive.fr` lands on `/?mag=<noPL>-<noPR>`: the drive the session is on.
+- Store pages say `"fClientConnecte":true|false`; a logged-out visitor still has a cart.
+- `promotions.aspx` is about 24 MB (1 800 products): one request, cached 10 minutes.
 - The path slug (`magasin-053701-053701-La-Ville-aux-Dames`) is cosmetic: only the host matters.
 - The locator can return a generic host (`fd1-courses`) that 302s to the real shard, so several
   stores share the same requested origin (issue #1).
@@ -80,4 +84,4 @@ API reference: `docs/api-capture.md`.
 | 5 | Product details: inspect raw `objElement` fields (1-2 live searches), expose only what exists | ✅ |
 | 6 | Wrap-up: README, summary since `ac341d7`, grep for URLs outside the allowlist in `src/` and `dist/` | ✅ |
 | + | Carte blanche (2026-11-01): bug fixes, tests, CI/CD, branch protection, SECURITY/CONTRIBUTING, portfolio page | ✅ (v0.4.0 released 2026-11-01) |
-| 7 | 0.5.0 (2026-11-11): sort, usual products, `diagnostic`, `courses` prompt, changed-page errors, no default drive, `.mcpb` bundle, French README | 🔄 (live parts: drive detection, aisles/offers; then release and outreach) |
+| 7 | 0.5.0 (2026-11-11): sort, usual products, `diagnostic`, `courses` prompt, changed-page errors, no default drive, `.mcpb` bundle, French README, `browse_offers`, session drive in `find_stores`/`set_store`, login warning, zero-result fix | 🔄 (in PR #9; then tag v0.5.0 and outreach, on the owner's go-ahead). Aisle browsing left out: the aisle menu is not in the pages. |

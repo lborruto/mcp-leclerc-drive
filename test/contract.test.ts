@@ -62,6 +62,7 @@ test("the server exposes exactly the cart-filling tools", async () => {
   assert.deepEqual(tools.map((t) => t.name).sort(), [
     "add_many",
     "add_to_cart",
+    "browse_offers",
     "diagnostic",
     "find_stores",
     "forget_usual",

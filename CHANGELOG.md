@@ -20,8 +20,14 @@ published them to npm. This repository continues from 0.3.0.
   product of your drive, on your computer only, so the weekly shop does not search again.
 - `search_product` takes `sort`: `pertinence` (the site's order), `prix` or `prix_unite` (cheapest
   per kilo or litre first).
-- `diagnostic`: versions, Chrome, the drive and whether the Leclerc session answers, in a text
-  that is safe to paste in a bug report.
+- `browse_offers`: the products on offer in your drive, filtered by words (« café »), sorted like
+  a search. The offers page is heavy, so it is read once and kept 10 minutes.
+- `find_stores` marks the drive the Chrome window's session is on, and `set_store` warns when you
+  pick another one, instead of leaving you with an expired-session page later.
+- The cart tools warn when nobody is logged in in the Chrome window: the cart is then a
+  visitor's, not your account's.
+- `diagnostic`: versions, Chrome, the drive, whether the Leclerc session answers and whether you
+  are logged in, in a text that is safe to paste in a bug report.
 - A `courses` prompt: a shopping list to the cart, usual products first, nothing past the cart.
 - A French README (`docs/README.fr.md`).
 
@@ -33,6 +39,8 @@ published them to npm. This repository continues from 0.3.0.
 
 ### Fixed
 
+- A search with no result showed half a dozen unrelated products: the suggestions Leclerc puts
+  on its « aucun résultat » page were taken for results.
 - If Leclerc Drive changes its pages, search and cart say so and ask to update or report, instead
   of answering « aucun produit » or an empty cart.
 

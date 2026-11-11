@@ -101,6 +101,7 @@ Ouvrez ensuite le panier sur leclercdrive.fr et commandez vous-même.
 | `find_stores` | Les drives proches d'un code postal ou d'une ville, avec l'identifiant pour en choisir un. |
 | `set_store` / `get_store` | Choisir le drive (retenu d'une session à l'autre) / l'afficher. |
 | `search_product` | Chercher dans le catalogue du drive : prix, prix au kilo, format, famille, avis, offres, stock, déjà au panier. Par pertinence, par prix ou par prix au kilo. |
+| `browse_offers` | Les produits en promotion dans votre drive, filtrés par mots si vous en donnez. |
 | `add_to_cart` | Ajouter des unités d'un produit, en plus de ce que le panier contient. |
 | `add_many` | Ajouter jusqu'à 30 produits d'un coup ; un échec n'arrête pas les autres. |
 | `update_quantity` | Fixer une ligne à une quantité exacte (0 la retire). |
@@ -114,9 +115,12 @@ d'abord) et s'arrête là.
 
 ## Bon à savoir
 
-- **Un drive à la fois.** Votre session Leclerc est liée au drive choisi sur le site. Pour faire
-  vos courses dans un autre drive, choisissez-le aussi dans la fenêtre Chrome, puis dans Claude ;
-  sinon Leclerc répond par une page de session expirée.
+- **Un drive à la fois.** Votre session Leclerc est liée au drive choisi sur le site.
+  `find_stores` signale le drive sur lequel se trouve la fenêtre Chrome, et `set_store` prévient
+  si vous en choisissez un autre : pour y faire vos courses, choisissez-le aussi dans la fenêtre
+  Chrome ; sinon Leclerc répond par une page de session expirée.
+- **Déconnecté ?** Les outils du panier le disent quand personne n'est connecté dans la fenêtre
+  Chrome : le panier qu'ils remplissent est alors celui d'un visiteur, pas celui de votre compte.
 - **Bloqué ou déconnecté ?** Si un outil dit que Leclerc Drive l'a bloqué ou que la session a
   expiré, rechargez la page dans la fenêtre Chrome du serveur (reconnectez-vous si on vous le
   demande) et réessayez. Gardez le rythme d'une personne : une liste de courses à la fois.

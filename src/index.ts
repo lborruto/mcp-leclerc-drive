@@ -18,7 +18,15 @@ import { z } from "zod";
 
 import { ChromeSession } from "./browser.js";
 import { loadConfig } from "./config.js";
-import { formatAddMany, formatCart, formatChange, formatSearch, formatStores, formatUsuals } from "./format.js";
+import {
+  filterOffers,
+  formatAddMany,
+  formatCart,
+  formatChange,
+  formatSearch,
+  formatStores,
+  formatUsuals,
+} from "./format.js";
 import { parseStoreHost } from "./hosts.js";
 import { LeclercClient } from "./leclerc/client.js";
 import { PageHttp } from "./leclerc/http.js";
@@ -104,6 +112,49 @@ async function run(body: () => Promise<string>) {
   }
 }
 
+/** Appended to cart results when the Chrome window is not logged in: the cart is a visitor's. */
+function withLoginWarning(text: string): string {
+  return client.loggedIn === false
+    ? `${text}\n⚠️ Personne n'est connecté à Leclerc Drive dans la fenêtre Chrome du serveur : ce panier ` +
+        `est celui d'un visiteur, pas celui du compte. Connecte-toi dans cette fenêtre.`
+    : text;
+}
+
+server.registerTool(
+  "browse_offers",
+  {
+    title: "Voir les promotions",
+    description:
+      "Liste les produits en promotion dans le magasin sélectionné, avec les mêmes informations " +
+      "que search_product. `query` filtre par mots du libellé ou de la famille (ex. 'café', " +
+      "'yaourt'). La première lecture est lente (page lourde), puis gardée 10 minutes.",
+    inputSchema: {
+      query: z.string().trim().max(100).default("").describe("Mots à trouver dans le libellé ou la famille (vide : tout)"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(SEARCH_MAX_RESULTS)
+        .default(SEARCH_DEFAULT_RESULTS)
+        .describe(`Nombre de produits à afficher (${SEARCH_DEFAULT_RESULTS} par défaut)`),
+      sort: z
+        .enum(["pertinence", "prix", "prix_unite"])
+        .default("pertinence")
+        .describe("Ordre : pertinence (celui du site), prix, ou prix_unite"),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  },
+  ({ query, limit, sort }) =>
+    run(async () =>
+      formatSearch(query || "les promotions", filterOffers(await client.offers(), query), {
+        limit,
+        onlyAvailable: true,
+        sort,
+        what: "produit(s) en promotion",
+      }),
+    ),
+);
+
 server.registerTool(
   "search_product",
   {
@@ -149,7 +200,7 @@ server.registerTool(
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   ({ product_id, quantity }) =>
-    run(async () => formatChange("Ajouté", await client.addToCart(product_id, quantity))),
+    run(async () => withLoginWarning(formatChange("Ajouté", await client.addToCart(product_id, quantity)))),
 );
 
 server.registerTool(
@@ -176,7 +227,9 @@ server.registerTool(
   },
   ({ items }) =>
     run(async () =>
-      formatAddMany(await client.addMany(items.map((i) => ({ productId: i.product_id, quantity: i.quantity })))),
+      withLoginWarning(
+        formatAddMany(await client.addMany(items.map((i) => ({ productId: i.product_id, quantity: i.quantity })))),
+      ),
     ),
 );
 
@@ -188,7 +241,7 @@ server.registerTool(
     inputSchema: { product_id: productId },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   },
-  ({ product_id }) => run(async () => formatChange("Retiré", await client.removeFromCart(product_id))),
+  ({ product_id }) => run(async () => withLoginWarning(formatChange("Retiré", await client.removeFromCart(product_id)))),
 );
 
 server.registerTool(
@@ -203,7 +256,7 @@ server.registerTool(
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   },
   ({ product_id, quantity }) =>
-    run(async () => formatChange("Quantité fixée", await client.updateQuantity(product_id, quantity))),
+    run(async () => withLoginWarning(formatChange("Quantité fixée", await client.updateQuantity(product_id, quantity)))),
 );
 
 server.registerTool(
@@ -213,7 +266,7 @@ server.registerTool(
     description: "Affiche le contenu complet du panier avec le total.",
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
-  () => run(async () => formatCart(await client.getCart())),
+  () => run(async () => withLoginWarning(formatCart(await client.getCart()))),
 );
 
 server.registerTool(
@@ -235,7 +288,7 @@ server.registerTool(
       if (stores.length === 0) return `Aucun drive trouvé pour « ${query} ».`;
       lastFound.clear();
       for (const s of stores) lastFound.set(s.key, s);
-      return formatStores(query, stores);
+      return formatStores(query, stores, locator.sessionDrive);
     }),
 );
 
@@ -276,9 +329,16 @@ server.registerTool(
         ? { storeId: found.storeId, noPR: found.noPR, host: found.host, name: found.name }
         : { storeId: store_id, noPR: store_id, host: parseStoreHost(host as string) };
       store.set(selection);
+      const session = locator.sessionDrive;
+      const elsewhere =
+        session && (session.storeId !== selection.storeId || session.noPR !== selection.noPR)
+          ? `\n⚠️ La fenêtre Chrome du serveur est sur un autre drive (id=${session.storeId}). Choisis ` +
+            `aussi ${selection.name ?? selection.storeId} dans cette fenêtre, sinon Leclerc Drive ` +
+            `répondra par une session expirée.`
+          : "";
       return (
         `Magasin actif : ${selection.name ?? selection.storeId} ` +
-        `(id=${selection.storeId} @ ${selection.host}). Mémorisé.`
+        `(id=${selection.storeId} @ ${selection.host}). Mémorisé.${elsewhere}`
       );
     }),
 );
@@ -390,6 +450,7 @@ server.registerTool(
           ? `Magasin : id=${s.storeId}${s.noPR !== s.storeId ? ` (relais ${s.noPR})` : ""} @ ${s.host}`
           : "Magasin : aucun drive choisi",
         `Session Leclerc Drive : ${session}`,
+        `Compte Leclerc : ${client.loggedIn === undefined ? "inconnu" : client.loggedIn ? "connecté" : "non connecté"}`,
         `Produits habituels : ${s ? usuals.list(s.storeId).length : 0}`,
       ];
       // No user name in a text meant to be pasted in public.

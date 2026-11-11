@@ -129,6 +129,7 @@ example `claude_desktop_config.json`:
 | `find_stores` | Drives near a postcode or town, nearest first, with the id to pick one. |
 | `set_store` / `get_store` | Choose the drive (remembered across sessions) / show it. |
 | `search_product` | Search the drive's catalogue: price, per-kilo price, size, family, rating, offers, stock, already in cart. Sorted by relevance, price or per-kilo price. |
+| `browse_offers` | The products on offer in your drive, filtered by words if you give some. |
 | `add_to_cart` | Add units of one product, on top of what the cart holds. |
 | `add_many` | Add up to 30 products in one go; one failure does not stop the rest. |
 | `update_quantity` | Set a line to an exact quantity (0 removes it). |
@@ -156,9 +157,12 @@ Throttling and retries have their own settings; see [CONTRIBUTING.md](CONTRIBUTI
 
 ## Good to know
 
-- **One drive at a time.** Your Leclerc session is tied to the drive chosen on the site. To shop
-  at another drive, choose it in the Chrome window too, then `set_store` it; otherwise Leclerc
-  answers with an expired-session page.
+- **One drive at a time.** Your Leclerc session is tied to the drive chosen on the site.
+  `find_stores` marks the drive the Chrome window is on, and `set_store` warns when you pick
+  another one: to shop there, choose it in the Chrome window too; otherwise Leclerc answers with an
+  expired-session page.
+- **Logged out?** The cart tools say so when nobody is logged in in the Chrome window: the cart
+  they fill is then a visitor's, not your account's.
 - **Blocked or logged out?** If a tool says Leclerc Drive blocked it or the session expired,
   reload the page in the server's Chrome window (log in again if asked) and retry. Keep the pace
   of a person: one shopping list at a time.
