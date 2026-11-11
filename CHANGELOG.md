@@ -12,6 +12,30 @@ published them to npm. This repository continues from 0.3.0.
 
 ## [Unreleased]
 
+### Added
+
+- A Claude Desktop bundle, `mcp-leclerc-drive-X.Y.Z.mcpb`, attached to each release: open it to
+  install, no terminal and no JSON file. Built and attested like the tarball.
+- Usual products: `save_usual`, `list_usuals`, `forget_usual` keep a short name (« lait ») for a
+  product of your drive, on your computer only, so the weekly shop does not search again.
+- `search_product` takes `sort`: `pertinence` (the site's order), `prix` or `prix_unite` (cheapest
+  per kilo or litre first).
+- `diagnostic`: versions, Chrome, the drive and whether the Leclerc session answers, in a text
+  that is safe to paste in a bug report.
+- A `courses` prompt: a shopping list to the cart, usual products first, nothing past the cart.
+- A French README (`docs/README.fr.md`).
+
+### Changed
+
+- A fresh install no longer starts on a default drive: until you choose one, the tools ask for
+  `find_stores` then `set_store` (the first search used to fail on a drive that was not yours).
+- `add_many` says to look for a close product when one is missing or was reduced.
+
+### Fixed
+
+- If Leclerc Drive changes its pages, search and cart say so and ask to update or report, instead
+  of answering « aucun produit » or an empty cart.
+
 ## [0.4.0] - 2026-11-01
 
 First release of this continuation: the two open upstream issues fixed, the Chrome session

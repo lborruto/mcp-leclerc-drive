@@ -5,6 +5,8 @@
   An MCP server that finds your drive, searches the shelves and adds to your cart, through your own Chrome. Nothing past the cart: you check out yourself.
 </p>
 
+<p align="center">🇫🇷 <a href="docs/README.fr.md">Lire en français</a></p>
+
 <p align="center">
   <a href="https://github.com/lborruto/mcp-leclerc-drive/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/lborruto/mcp-leclerc-drive/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="LICENSE"><img alt="Licence: MIT" src="https://img.shields.io/badge/licence-MIT-blue.svg"></a>
@@ -28,10 +30,13 @@ Claude  ▸ search_product « beurre doux »
 
 - **Finds your drive.** By postcode or town, nearest first, then remembers the one you pick.
 - **Searches the shelves.** Price, price per kilo or litre, pack size, family, customer rating,
-  instant discounts, stock, and what is already in your cart.
+  instant discounts, stock, and what is already in your cart. Cheapest first, or cheapest per
+  kilo first, if you ask.
 - **Fills the cart.** Add one product or up to 30 in one go, set a quantity, remove a line,
   read the cart and its total. Every change is confirmed by Leclerc Drive; anything it kept
   short (stock, limits) is said.
+- **Remembers your usual products.** « Mémorise ce lait comme mon lait habituel » : next week,
+  « ajoute mon lait » needs no search. Kept on your computer only.
 - **Stops at the cart.** No tool validates the cart, books a slot, orders or pays. You check
   the cart and finish on the site, as usual.
 - **Through your own Chrome.** The server opens a Chrome window with its own profile; you log
@@ -63,18 +68,22 @@ The details, and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 **You need:** Node.js 22 or later, Google Chrome, a Leclerc Drive account, and an MCP client
 such as [Claude Code](https://claude.com/claude-code) or Claude Desktop.
 
-**1. Add it to Claude Code**, from the latest release (built and attested by GitHub Actions):
+**1a. Claude Desktop, no terminal:** download `mcp-leclerc-drive-0.5.0.mcpb` from the
+[latest release](https://github.com/lborruto/mcp-leclerc-drive/releases/latest) and open it (or
+drag it into Claude Desktop's Settings › Extensions), then go to step 2.
+
+**1b. Claude Code**, from the latest release (built and attested by GitHub Actions):
 
 ```bash
 claude mcp add --scope user leclerc-drive -- npx -y \
-  --package=https://github.com/lborruto/mcp-leclerc-drive/releases/download/v0.4.0/mcp-leclerc-drive-0.4.0.tgz \
+  --package=https://github.com/lborruto/mcp-leclerc-drive/releases/download/v0.5.0/mcp-leclerc-drive-0.5.0.tgz \
   mcp-leclerc-drive
 ```
 
 > Not `npx mcp-leclerc-drive` on its own: that name on npm is the original, unmaintained 0.3.0,
 > without these fixes and checks. This project is never published to npm. To check the tarball
 > was built by this repository's release workflow: `gh attestation verify
-> mcp-leclerc-drive-0.4.0.tgz -R lborruto/mcp-leclerc-drive`.
+> mcp-leclerc-drive-0.5.0.tgz -R lborruto/mcp-leclerc-drive`.
 
 **Or from a clone**, to read the code first or follow `main`:
 
@@ -92,10 +101,11 @@ window open while you shop; your login is kept for next time.
 shows. The shopping works on the drive the Chrome window is logged into.
 
 **4. Shop.** « Ajoute 2 packs de lait et du beurre », « qu'y a-t-il dans mon panier ? », « enlève
-le beurre ». Then open the cart on leclercdrive.fr and check out yourself.
+le beurre ». Or hand over the whole list with the `courses` prompt (in Claude Code:
+`/mcp__leclerc-drive__courses`). Then open the cart on leclercdrive.fr and check out yourself.
 
-**Claude Desktop** and other clients: add it to the client's MCP configuration, for example
-`claude_desktop_config.json`:
+**Other clients** (or Claude Desktop by hand): add it to the client's MCP configuration, for
+example `claude_desktop_config.json`:
 
 ```json
 {
@@ -104,7 +114,7 @@ le beurre ». Then open the cart on leclercdrive.fr and check out yourself.
       "command": "npx",
       "args": [
         "-y",
-        "--package=https://github.com/lborruto/mcp-leclerc-drive/releases/download/v0.4.0/mcp-leclerc-drive-0.4.0.tgz",
+        "--package=https://github.com/lborruto/mcp-leclerc-drive/releases/download/v0.5.0/mcp-leclerc-drive-0.5.0.tgz",
         "mcp-leclerc-drive"
       ]
     }
@@ -118,12 +128,17 @@ le beurre ». Then open the cart on leclercdrive.fr and check out yourself.
 |---|---|
 | `find_stores` | Drives near a postcode or town, nearest first, with the id to pick one. |
 | `set_store` / `get_store` | Choose the drive (remembered across sessions) / show it. |
-| `search_product` | Search the drive's catalogue: price, per-kilo price, size, family, rating, offers, stock, already in cart. |
+| `search_product` | Search the drive's catalogue: price, per-kilo price, size, family, rating, offers, stock, already in cart. Sorted by relevance, price or per-kilo price. |
 | `add_to_cart` | Add units of one product, on top of what the cart holds. |
 | `add_many` | Add up to 30 products in one go; one failure does not stop the rest. |
 | `update_quantity` | Set a line to an exact quantity (0 removes it). |
 | `remove_from_cart` | Remove a line. |
 | `get_cart` | The cart, line by line, with the total. |
+| `list_usuals` / `save_usual` / `forget_usual` | Your usual products: a short name for a product, per drive, kept on your computer. |
+| `diagnostic` | Checks the install (versions, Chrome, drive, session). Safe to paste in a bug report. |
+
+And one prompt, `courses`: give it your shopping list, it fills the cart (usual products first)
+and stops there.
 
 ## Settings
 
@@ -135,7 +150,7 @@ NAME=value …`):
 | `LECLERC_CHROME_PATH` | Chrome's usual place | The Chrome to start, if yours is elsewhere. |
 | `LECLERC_CHROME_PROFILE_DIR` | `~/.mcp-leclerc-drive/chrome` | The server's own Chrome profile, where your Leclerc login is kept. Never your main profile. |
 | `LECLERC_CHROME_PORT` | `9333` | Chrome's local debug port. |
-| `LECLERC_STORE_ID`, `LECLERC_HOST` | none | A drive to start with, instead of `set_store`. |
+| `LECLERC_STORE_ID`, `LECLERC_HOST` | none | A drive to start with, instead of `set_store`. Without either, the tools ask you to pick one. |
 
 Throttling and retries have their own settings; see [CONTRIBUTING.md](CONTRIBUTING.md#configuration).
 
@@ -156,7 +171,7 @@ Throttling and retries have their own settings; see [CONTRIBUTING.md](CONTRIBUTI
 
 ## Upgrading
 
-Change the version in the `claude mcp add` command (remove the old entry with `claude mcp remove
+In Claude Desktop, open the new release's `.mcpb` file. In Claude Code, change the version in the `claude mcp add` command (remove the old entry with `claude mcp remove
 leclerc-drive`), or `git pull && npm ci` in your clone. What changed is in
 [CHANGELOG.md](CHANGELOG.md). Your login and your drive are kept.
 
@@ -171,7 +186,7 @@ leclerc-drive`), or `git pull && npm ci` in your clone. What changed is in
 | See what changed in each version | [CHANGELOG.md](CHANGELOG.md) |
 
 Found a bug? [Open an issue](https://github.com/lborruto/mcp-leclerc-drive/issues) with the
-version, your OS, Chrome version and the error text. Never your cookies, account, address or
+output of the `diagnostic` tool (« lance le diagnostic ») and the error text. Never your cookies, account, address or
 screenshots of your logged-in account.
 
 ## Licence and credits

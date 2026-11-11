@@ -33,14 +33,18 @@ Scope: search products and fill the cart from an MCP client. Nothing past the ca
 | `browser.ts` | `ChromeSession`: launches/reuses Chrome, own tab, native-WebSocket CDP with timeouts, `fetch()` run in the page (origin + redirect checks inside). |
 | `chrome-profile.ts` | Main-profile guard; lock (PID, port, DevTools browser id) so the server never attaches to a Chrome it did not start. |
 | `hosts.ts` | Host allowlist, store host/id rules. |
-| `errors.ts` | `BlockingError`: failures every following request would hit. |
+| `errors.ts` | `BlockingError`: failures every following request would hit. `SiteChangedError`: the page is no longer in the shape we read. |
+| `usuals.ts` | Usual products (name → product id, per store), persisted to `~/.mcp-leclerc-drive/habituels.json`. |
 | `leclerc/http.ts` | The one request path: shared throttle, 403/429 backoff, one re-navigation on "Failed to fetch" / stale tab. |
 | `leclerc/client.ts` | Search, cart read, cart changes (exclusive, one store snapshot per operation), `add_many`. |
 | `leclerc/parse.ts` | Pure parsing of pages and cart events. |
 | `leclerc/locator.ts` | `find_stores` through `api-recherchemagasins` (fetched from a `www.leclercdrive.fr` page). |
 | `leclerc/throttle.ts` | Serialized queue + min interval + jitter + backoff. |
-| `store.ts` | Active store, persisted to `~/.mcp-leclerc-drive/config.json`. |
+| `store.ts` | Active store, persisted to `~/.mcp-leclerc-drive/config.json`. No store chosen = `current()` throws. |
 | `config.ts` | `LECLERC_*` environment variables, validated. |
+
+Claude Desktop bundle: `mcpb/manifest.json` + `scripts/build-mcpb.mjs` (`npm run bundle`); a new
+tool or prompt must be added to the manifest (contract test).
 
 Tests: `test/` (`npm test`), mostly against `test/fake-chrome.ts`. Live checks: `npm run smoke`.
 
@@ -75,4 +79,5 @@ API reference: `docs/api-capture.md`.
 | 4 | `add_many` tool: sequential, throttled, carries on after a failure, per-item result + final cart | ✅ |
 | 5 | Product details: inspect raw `objElement` fields (1-2 live searches), expose only what exists | ✅ |
 | 6 | Wrap-up: README, summary since `ac341d7`, grep for URLs outside the allowlist in `src/` and `dist/` | ✅ |
-| + | Carte blanche (2026-11-01): bug fixes, tests, CI/CD, branch protection, SECURITY/CONTRIBUTING, portfolio page | 🔄 (push, branch protection, release v0.4.0 await the owner) |
+| + | Carte blanche (2026-11-01): bug fixes, tests, CI/CD, branch protection, SECURITY/CONTRIBUTING, portfolio page | ✅ (v0.4.0 released 2026-11-01) |
+| 7 | 0.5.0 (2026-11-11): sort, usual products, `diagnostic`, `courses` prompt, changed-page errors, no default drive, `.mcpb` bundle, French README | 🔄 (live parts: drive detection, aisles/offers; then release and outreach) |
