@@ -45,7 +45,9 @@ message rather than being ignored.
 | `LECLERC_BACKOFF_BASE_MS` | `1500` | First retry delay, doubled each time. |
 
 The chosen store is saved in `~/.mcp-leclerc-drive/config.json` and wins over the two store
-variables; a saved host outside the allowlist is ignored.
+variables; a saved host outside the allowlist is ignored. With no saved store and no
+`LECLERC_STORE_ID`, the store tools refuse to run and ask for `find_stores` then `set_store`.
+Usual products are saved in `~/.mcp-leclerc-drive/habituels.json`, per store.
 
 ## Checks
 
@@ -175,9 +177,13 @@ server variant could be revisited if someone needs it and can test it against Da
    `## [Unreleased]` above it.
 3. Merge to `main`, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 4. `release.yml` runs CI on the tagged commit, checks that `package.json` says `X.Y.Z`, builds
-   and packs `mcp-leclerc-drive-X.Y.Z.tgz`, attests its build provenance and creates the GitHub
-   release from the changelog section, with the tarball attached. A tag without its section, or
+   and packs `mcp-leclerc-drive-X.Y.Z.tgz`, builds the Claude Desktop bundle
+   `mcp-leclerc-drive-X.Y.Z.mcpb` (`scripts/build-mcpb.mjs`: `dist/`, the production dependencies
+   and `mcpb/manifest.json`, zipped; `npm run bundle` builds it locally), attests the build
+   provenance of both and creates the GitHub release from the changelog section, with both
+   attached. A new tool or prompt goes in `mcpb/manifest.json` too (a test checks it). A tag without its section, or
    with another version in `package.json`, fails on purpose. Nothing goes to npm.
 
-There is no MCP registry manifest (`server.json`) and no npm package: the release tarball and the
-repository are the only ways to install.
+There is no MCP registry manifest (`server.json`) and no npm package: the release tarball, the
+Claude Desktop bundle and the repository are the only ways to install. Update the version in
+`README.md` and `docs/README.fr.md` with the bump.

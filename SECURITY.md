@@ -50,6 +50,11 @@ by E.Leclerc, DataDome or Google.
   another port, a process that is gone, or a Chrome reporting another DevTools id. It works in its
   own tab, never in one you are using, and checks inside the page that the tab is still on Leclerc
   Drive before each request. Close that Chrome window when you are done to close the port.
+- **What it keeps on disk.** Besides the Chrome profile: the drive you chose
+  (`~/.mcp-leclerc-drive/config.json`) and your usual products
+  (`~/.mcp-leclerc-drive/habituels.json`: the names you gave, product ids and labels). Both stay on
+  your computer; delete them to forget. The `diagnostic` tool reports versions, the drive id and
+  whether the session answers, never your account, your cart or your user name.
 - **Nothing past the cart.** No tool validates the cart, picks a slot, places an order or pays:
   the server fills the cart, you check out yourself on the site. Cart changes are real: they
   change your Leclerc Drive cart, the one you see on the site.

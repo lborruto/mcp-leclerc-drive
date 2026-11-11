@@ -18,6 +18,8 @@ export interface LeclercConfig {
   storeId: string;
   /** Default backend host, e.g. "fd9-courses.leclercdrive.fr". */
   host: string;
+  /** True when no LECLERC_STORE_ID was given: storeId is only a placeholder, not the user's drive. */
+  storeIsPlaceholder?: boolean;
 
   // --- Chrome / CDP ---
   /** Path to the Chrome binary; auto-detected per-OS when empty. */
@@ -72,6 +74,7 @@ export function loadConfig(): LeclercConfig {
   }
   return {
     storeId,
+    storeIsPlaceholder: !process.env.LECLERC_STORE_ID?.trim(),
     host: rawHost ? parseStoreHost(rawHost) : DEFAULT_HOST,
     chromePath: process.env.LECLERC_CHROME_PATH?.trim() || undefined,
     chromeProfileDir: resolve(

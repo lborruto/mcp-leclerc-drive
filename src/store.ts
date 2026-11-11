@@ -29,6 +29,8 @@ const CONFIG_FILE = join(homedir(), ".mcp-leclerc-drive", "config.json");
 
 export class StoreState {
   private selection: StoreSelection;
+  /** False until a drive was chosen (set_store, an earlier session, or LECLERC_STORE_ID). */
+  private chosen: boolean;
 
   constructor(
     config: LeclercConfig,
@@ -39,11 +41,25 @@ export class StoreState {
       noPR: config.storeId,
       host: config.host,
     };
-    this.selection = readPersisted(file) ?? fallback;
+    const persisted = readPersisted(file);
+    this.selection = persisted ?? fallback;
+    this.chosen = persisted !== null || !config.storeIsPlaceholder;
   }
 
+  /** The chosen drive. Throws when none was chosen yet: shopping at a default drive helps nobody. */
   current(): StoreSelection {
+    if (!this.chosen) {
+      throw new Error(
+        "Aucun drive choisi pour l'instant. Lance find_stores avec un code postal ou une ville, " +
+          "puis set_store avec l'id du drive.",
+      );
+    }
     return this.selection;
+  }
+
+  /** The chosen drive, or undefined when none was chosen yet. */
+  chosenOrUndefined(): StoreSelection | undefined {
+    return this.chosen ? this.selection : undefined;
   }
 
   set(selection: StoreSelection): void {
@@ -51,6 +67,7 @@ export class StoreState {
       throw new Error(`Magasin invalide : ${selection.storeId} @ ${selection.host}.`);
     }
     this.selection = selection;
+    this.chosen = true;
     writePersisted(this.file, selection);
   }
 

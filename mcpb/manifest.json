@@ -1,0 +1,58 @@
+{
+  "manifest_version": "0.3",
+  "name": "mcp-leclerc-drive",
+  "display_name": "E.Leclerc Drive",
+  "version": "0.0.0",
+  "description": "Remplit votre panier E.Leclerc Drive depuis Claude, via votre propre Chrome. Rien au-delà du panier : vous commandez vous-même.",
+  "long_description": "Serveur MCP non officiel pour E.Leclerc Drive : trouve votre drive, cherche des produits et remplit le panier. Il ouvre une fenêtre Google Chrome avec son propre profil ; vous vous y connectez vous-même à Leclerc Drive, une fois. Il ne voit jamais votre mot de passe, ne parle qu'aux sites leclercdrive.fr et ne valide, ne commande ni ne paie jamais rien. Google Chrome doit être installé. Projet indépendant, non affilié à E.Leclerc.",
+  "author": {
+    "name": "Luca Borruto",
+    "url": "https://github.com/lborruto"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lborruto/mcp-leclerc-drive"
+  },
+  "homepage": "https://github.com/lborruto/mcp-leclerc-drive",
+  "documentation": "https://github.com/lborruto/mcp-leclerc-drive#readme",
+  "support": "https://github.com/lborruto/mcp-leclerc-drive/issues",
+  "license": "MIT",
+  "keywords": ["leclerc", "leclerc-drive", "courses", "drive", "grocery"],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {}
+    }
+  },
+  "tools": [
+    { "name": "find_stores", "description": "Trouver les drives proches d'un code postal ou d'une ville" },
+    { "name": "set_store", "description": "Choisir le drive (mémorisé)" },
+    { "name": "get_store", "description": "Afficher le drive choisi et l'état de Chrome" },
+    { "name": "search_product", "description": "Chercher des produits : prix, prix au kilo, format, avis, stock" },
+    { "name": "browse_offers", "description": "Voir les produits en promotion dans votre drive" },
+    { "name": "add_to_cart", "description": "Ajouter un produit au panier" },
+    { "name": "add_many", "description": "Ajouter jusqu'à 30 produits en une fois" },
+    { "name": "update_quantity", "description": "Fixer la quantité d'une ligne du panier" },
+    { "name": "remove_from_cart", "description": "Retirer un produit du panier" },
+    { "name": "get_cart", "description": "Voir le panier et son total" },
+    { "name": "list_usuals", "description": "Lister vos produits habituels" },
+    { "name": "save_usual", "description": "Mémoriser un produit habituel sous un nom court" },
+    { "name": "forget_usual", "description": "Oublier un produit habituel" },
+    { "name": "diagnostic", "description": "Vérifier l'installation et la session" }
+  ],
+  "prompts": [
+    {
+      "name": "courses",
+      "description": "Remplir le panier à partir d'une liste de courses",
+      "arguments": ["liste"],
+      "text": "Remplis mon panier E.Leclerc Drive avec cette liste de courses : ${arguments.liste}"
+    }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=22.0.0" }
+  }
+}

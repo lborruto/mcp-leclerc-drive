@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { formatProduct } from "../src/format.js";
 import {
   assertStorePage,
   decodeEntities,
@@ -64,7 +65,10 @@ test("mapProduct builds a Product from a raw record", () => {
     label: "Lait demi-écrémé Bio 1L",
     price: 1.29,
     offer: undefined,
+    promoPrice: undefined,
+    origin: undefined,
     pricePerUnit: "1,29 € / L",
+    pricePerUnitValue: undefined,
     size: "1 l",
     family: "Lait et Boissons lactees",
     rating: { stars: 4.5, reviews: 149 },
@@ -136,4 +140,25 @@ test("withoutCartContext leaves the page's own records only", () => {
   const ids = scanProductRecords(withoutCartContext(SEARCH_PAGE)).map((r) => String(r.iIdProduit));
   assert.deepEqual(ids, ["2612", "2613", "2612"]);
   assert.match(withoutCartContext(SEARCH_PAGE), /"lstProduits":\[\],\s*"lstProduitsLight":\[\]/);
+});
+
+test("mapProduct reads lot and immediate-discount offers, the discounted price and the origin", () => {
+  const p = mapProduct({
+    iIdProduit: 9,
+    sLibelleLigne1: "Tomates",
+    nrPVUnitaireTTC: 2.5,
+    iQteDisponible: 3,
+    sTexteTooltipLot: "Avantage imm&#233;diat de 20%",
+    nrPVBRIIDeduit: 2,
+    lstMentionsProduit: [
+      { sLibelleMention: "Catégorie", sLibelleValeur: "1" },
+      { sLibelleMention: "Origine", sLibelleValeur: "FRANCE" },
+    ],
+  });
+  assert.equal(p.offer, "Avantage immédiat de 20%");
+  assert.equal(p.promoPrice, 2);
+  assert.equal(p.origin, "FRANCE");
+  assert.match(formatProduct(p), /Tomates — 2,50 € \(2,00 € remise déduite\) 🏷️ Avantage immédiat de 20% · origine FRANCE id=9/);
+  // A "discounted" price that is not lower is not shown.
+  assert.equal(mapProduct({ iIdProduit: 9, nrPVUnitaireTTC: 2, nrPVBRIIDeduit: 2 }).promoPrice, undefined);
 });

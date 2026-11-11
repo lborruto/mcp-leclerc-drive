@@ -210,3 +210,22 @@ test("formatSearch: available first, limited, with what was left out", () => {
   assert.match(formatSearch("x", [p("1", false)], { limit: 5, onlyAvailable: true }), /Aucun produit disponible.*1 indisponible/);
   assert.match(formatSearch("x", [], { limit: 5, onlyAvailable: false }), /Aucun produit trouvé/);
 });
+
+test("formatSearch: sorted by price or by price per kilo, unknown per-unit prices last", () => {
+  const p = (id: string, price: number, perUnit?: number, available = true) => ({
+    id,
+    label: `P${id}`,
+    price,
+    pricePerUnitValue: perUnit,
+    available,
+  });
+  const products = [p("1", 3, 6), p("2", 1, 10), p("3", 2), p("4", 0.5, 1, false), p("5", 2.5, 5)];
+  const ids = (text: string) => [...text.matchAll(/id=(\d)/g)].map((m) => m[1]);
+  assert.deepEqual(ids(formatSearch("x", products, { limit: 9, onlyAvailable: false })), ["1", "2", "3", "5", "4"]);
+  const byPrice = formatSearch("x", products, { limit: 9, onlyAvailable: false, sort: "prix" });
+  assert.deepEqual(ids(byPrice), ["2", "3", "5", "1", "4"]);
+  assert.match(byPrice, /du moins cher au plus cher :/);
+  const byUnit = formatSearch("x", products, { limit: 9, onlyAvailable: false, sort: "prix_unite" });
+  assert.deepEqual(ids(byUnit), ["5", "1", "2", "3", "4"]);
+  assert.match(byUnit, /au kilo\/litre/);
+});

@@ -1,6 +1,6 @@
 {
   "name": "mcp-leclerc-drive",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Unofficial MCP server for E.Leclerc Drive: find your drive, search products and fill your cart from Claude, through your own Chrome. Nothing past the cart.",
   "type": "module",
@@ -21,6 +21,7 @@
     "test": "npm run build && npm run clean:test && tsc -p tsconfig.test.json && node --test \"build-test/test/**/*.test.js\"",
     "clean:test": "node -e \"require('node:fs').rmSync('build-test',{recursive:true,force:true})\"",
     "check:hosts": "node scripts/check-hosts.mjs",
+    "bundle": "npm run build && node scripts/build-mcpb.mjs",
     "prepare": "npm run build"
   },
   "keywords": [

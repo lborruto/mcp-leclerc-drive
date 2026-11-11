@@ -33,6 +33,35 @@ export function assertStorePage(html: string): void {
   );
 }
 
+/**
+ * A search with no result still carries product records: the "zero result"
+ * panel suggests a few unrelated products (seen live 2026-11-11). They are not
+ * results.
+ */
+export function isZeroResultPage(html: string): boolean {
+  return html.includes("ucZeroResultat");
+}
+
+/** Whether the page says a customer is logged in (`fClientConnecte`); undefined if it does not say. */
+export function loggedInFlag(html: string): boolean | undefined {
+  const m = /"fClientConnecte"\s*:\s*(true|false)/.exec(html);
+  return m ? m[1] === "true" : undefined;
+}
+
+/**
+ * The drive a Leclerc session is on, from where www.leclercdrive.fr lands:
+ * the site sends a visitor who has a drive to `/?mag=<noPL>-<noPR>` (seen live
+ * 2026-11-11).
+ */
+export function sessionDriveFromUrl(url: string): { storeId: string; noPR: string } | undefined {
+  try {
+    const m = /^(\d{1,10})-(\d{1,10})$/.exec(new URL(url).searchParams.get("mag") ?? "");
+    return m ? { storeId: m[1], noPR: m[2] } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface RawProduct {
   iIdProduit: number | string;
   sLibelleLigne1?: string;
@@ -51,6 +80,13 @@ export interface RawProduct {
   sType?: string;
   /** Instant-discount text, e.g. "Bénéficiez de 0.40 € de remise immédiate." */
   sTexteLogoCoupon?: string;
+  /** Offer texts of lots and immediate advantages ("Le 2ème est offert…", "Avantage immédiat de 20%"). */
+  sTexteTooltipLot?: string;
+  sTexteLogoBRII?: string;
+  /** Unit price with the immediate discount taken off (same as sPrixPromo, as a number). */
+  nrPVBRIIDeduit?: number;
+  /** Regulatory mentions of fresh products: "Origine" → "FRANCE", "Variété", "Calibre"… */
+  lstMentionsProduit?: Array<{ sLibelleMention?: string; sLibelleValeur?: string }>;
   /** Link to the product's family page: /magasin-…/rayon-<iIdFamille>-<Family-Name>.aspx */
   sUrlVoirRayon?: string;
   iIdFamille?: number;
@@ -75,7 +111,11 @@ export function mapProduct(rp: RawProduct): Product {
     [rp.sLibelleLigne1, rp.sLibelleLigne2].filter(Boolean).join(" ").replace(/\s+/g, " ").trim(),
   );
   const price = num(rp.nrPVUnitaireTTC) ?? parseEuro(rp.sPrixUnitaire) ?? 0;
-  const offer = rp.sTexteLogoCoupon?.trim();
+  const offer = (rp.sTexteLogoCoupon || rp.sTexteTooltipLot || rp.sTexteLogoBRII)?.trim();
+  const promoPrice = positive(num(rp.nrPVBRIIDeduit));
+  const origin = Array.isArray(rp.lstMentionsProduit)
+    ? rp.lstMentionsProduit.find((m) => m?.sLibelleMention === "Origine")?.sLibelleValeur?.trim()
+    : undefined;
   const reviews = num(rp.objAvisClient?.NbAvis);
   const stars = num(rp.objAvisClient?.Note?.Valeur);
   const inCart = num(rp.iQuantitePanier) ?? num(rp.iQtePanier);
@@ -84,7 +124,10 @@ export function mapProduct(rp: RawProduct): Product {
     label: label || `Produit ${rp.iIdProduit}`,
     price,
     offer: offer ? decodeEntities(offer) : undefined,
+    promoPrice: promoPrice !== undefined && promoPrice < price ? promoPrice : undefined,
+    origin: origin ? decodeEntities(origin) : undefined,
     pricePerUnit: rp.sPrixParUniteDeMesure || undefined,
+    pricePerUnitValue: positive(num(rp.nrPVParUniteDeMesureTTC)),
     size: packSize(rp.nrContenanceTotale, rp.sUniteMesureTotale),
     family: familyName(rp.sUrlVoirRayon),
     rating: stars !== undefined && reviews ? { stars, reviews } : undefined,
@@ -92,6 +135,10 @@ export function mapProduct(rp: RawProduct): Product {
     inCart: inCart && inCart > 0 ? inCart : undefined,
     imageUrl: rp.sUrlVignetteProduit || undefined,
   };
+}
+
+function positive(n: number | undefined): number | undefined {
+  return n !== undefined && n > 0 ? n : undefined;
 }
 
 /** "0,6 kg", "6 l", "4 pièces" from the total pack size. */
@@ -177,20 +224,32 @@ export function extractCartTotal(html: string): string | undefined {
  * the smallest enclosing `{...}` object, skipping any that fail to parse.
  */
 export function scanProductRecords(raw: string): RawProduct[] {
-  const out: RawProduct[] = [];
+  return scanProducts(raw).records;
+}
+
+/**
+ * Same scan, with the number of `iIdProduit` occurrences that could not be
+ * read as a record: when there are some and no record at all, the page's
+ * format changed, which is not the same as "nothing found".
+ */
+export function scanProducts(raw: string): { records: RawProduct[]; unreadable: number } {
+  const records: RawProduct[] = [];
+  let unreadable = 0;
   const re = /"iIdProduit"\s*:/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(raw))) {
     const obj = smallestEnclosingObject(raw, m.index);
-    if (obj) {
-      try {
-        out.push(JSON.parse(obj) as RawProduct);
-      } catch {
-        /* skip records with function members etc. */
-      }
+    if (!obj) {
+      unreadable++;
+      continue;
+    }
+    try {
+      records.push(JSON.parse(obj) as RawProduct);
+    } catch {
+      unreadable++; // e.g. a record with function members
     }
   }
-  return out;
+  return { records, unreadable };
 }
 
 function smallestEnclosingObject(raw: string, at: number): string | null {

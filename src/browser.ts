@@ -448,6 +448,12 @@ export class ChromeSession {
       : `Chrome : ouvert par le serveur (127.0.0.1:${port}), connexion à la prochaine requête.`;
   }
 
+  /** The running Chrome's product and version ("Chrome/154.0.0.0"), when one answers on the port. */
+  async chromeVersion(): Promise<string | undefined> {
+    const version = await tryJson(`http://127.0.0.1:${this.opts.port}/json/version`);
+    return typeof version?.Browser === "string" ? version.Browser : undefined;
+  }
+
   /** Close this session's tab and connection; Chrome and its login stay. */
   async close(): Promise<void> {
     const id = this.targetId;

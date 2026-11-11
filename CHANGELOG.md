@@ -12,6 +12,48 @@ published them to npm. This repository continues from 0.3.0.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-11
+
+Easier to install and to live with: a one-file install for Claude Desktop, usual products, offers,
+and clearer answers when something is off (no drive chosen, logged out, another drive, a changed
+page).
+
+### Added
+
+- A Claude Desktop bundle, `mcp-leclerc-drive-X.Y.Z.mcpb`, attached to each release: open it to
+  install, no terminal and no JSON file. Built and attested like the tarball.
+- Usual products: `save_usual`, `list_usuals`, `forget_usual` keep a short name (« lait ») for a
+  product of your drive, on your computer only, so the weekly shop does not search again.
+- `search_product` takes `sort`: `pertinence` (the site's order), `prix` or `prix_unite` (cheapest
+  per kilo or litre first).
+- `browse_offers`: the products on offer in your drive, filtered by whole words (« café », not
+  « caféine »), sorted like a search. The offers page is heavy, so it is read once and kept 10
+  minutes.
+- Products show more of what the site says: lot offers (« Le 2ème est offert », « 20% en Ticket
+  E.Leclerc »), the price once an immediate discount is taken off, and the country of origin of
+  fresh produce.
+- `find_stores` marks the drive the Chrome window's session is on, and `set_store` warns when you
+  pick another one, instead of leaving you with an expired-session page later.
+- The cart tools warn when nobody is logged in in the Chrome window: the cart is then a
+  visitor's, not your account's.
+- `diagnostic`: versions, Chrome, the drive, whether the Leclerc session answers and whether you
+  are logged in, in a text that is safe to paste in a bug report.
+- A `courses` prompt: a shopping list to the cart, usual products first, nothing past the cart.
+- A French README (`docs/README.fr.md`).
+
+### Changed
+
+- A fresh install no longer starts on a default drive: until you choose one, the tools ask for
+  `find_stores` then `set_store` (the first search used to fail on a drive that was not yours).
+- `add_many` says to look for a close product when one is missing or was reduced.
+
+### Fixed
+
+- A search with no result showed half a dozen unrelated products: the suggestions Leclerc puts
+  on its « aucun résultat » page were taken for results.
+- If Leclerc Drive changes its pages, search and cart say so and ask to update or report, instead
+  of answering « aucun produit » or an empty cart.
+
 ## [0.4.0] - 2026-11-01
 
 First release of this continuation: the two open upstream issues fixed, the Chrome session

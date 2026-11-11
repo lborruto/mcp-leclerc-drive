@@ -15,7 +15,7 @@
 
 import { PageResponse, PageTarget } from "../browser.js";
 import { storePath } from "../config.js";
-import { BlockingError, isBlocking } from "../errors.js";
+import { BlockingError, isBlocking, SiteChangedError } from "../errors.js";
 import { isStoreHost } from "../hosts.js";
 import { StoreSelection, StoreState } from "../store.js";
 import { AddManyItemResult, AddManyResult, Cart, CartChange, CartItem, Product } from "../types.js";
@@ -24,12 +24,15 @@ import {
   CartEvent,
   extractArrayNamed,
   extractCartTotal,
+  isZeroResultPage,
+  loggedInFlag,
   mapProduct,
   num,
   parseEuro,
   RawProduct,
   round2,
   scanProductRecords,
+  scanProducts,
   withoutCartContext,
 } from "./parse.js";
 import { PageHttp } from "./http.js";
@@ -39,6 +42,8 @@ const ACTION_ADD = 1; // add / increase to target qty
 const ACTION_SUB = 2; // decrease / remove (qty 0)
 
 
+const OFFERS_TTL_MS = 10 * 60 * 1000;
+
 /** Query token that returns no search results, so a fetched page carries only cart data. */
 const NO_MATCH_QUERY = "zzzznomatchzzz";
 
@@ -47,6 +52,34 @@ export class LeclercClient {
     private readonly http: PageHttp,
     private readonly store: StoreState,
   ) {}
+
+  /** Labels of the products seen this session (searches, cart), by id: no request needed to name one. */
+  private readonly labels = new Map<string, string>();
+
+  private remember(p: Product): void {
+    if (this.labels.size >= 5000) this.labels.clear();
+    this.labels.set(p.id, p.label);
+  }
+
+  /** The label of a product seen in a search or in the cart since the server started. */
+  labelOf(productId: string): string | undefined {
+    return this.labels.get(productId);
+  }
+
+  /**
+   * Whether the last store page read said a customer is logged in. False means
+   * the cart being filled is a visitor's, not the user's account.
+   */
+  loggedIn: boolean | undefined;
+
+  /** Every store page read goes through here: block pages refused, login state noted. */
+  private readStorePage(html: string): void {
+    assertStorePage(html);
+    this.loggedIn = loggedInFlag(html) ?? this.loggedIn;
+  }
+
+  /** The offers page is heavy (about 24 MB): kept a few minutes per store. */
+  private offersCache: { key: string; at: number; products: Product[] } | undefined;
 
   /** Cart operations, one at a time: a read-then-write must not interleave with another. */
   private cartQueue: Promise<unknown> = Promise.resolve();
@@ -130,8 +163,36 @@ export class LeclercClient {
     const res = await this.send(sel, "GET", this.searchUrl(sel, query), { Accept: "text/html" });
     if (!res.ok) throw new Error(`Search HTTP ${res.status} (${res.statusText})`);
     const html = await res.text();
-    assertStorePage(html);
+    this.readStorePage(html);
+    if (isZeroResultPage(html)) return [];
+    return this.pageProducts(html, "sa page de recherche");
+  }
 
+  /**
+   * The products currently on offer in the store, from its promotions page
+   * (one heavy request, kept 10 minutes).
+   */
+  async offers(): Promise<Product[]> {
+    const sel = this.store.current();
+    const key = `${sel.storeId}-${sel.noPR}`;
+    const cached = this.offersCache;
+    if (cached && cached.key === key && Date.now() - cached.at < OFFERS_TTL_MS) return cached.products;
+    const res = await this.send(sel, "GET", `/${storePath(sel.storeId, sel.noPR)}/promotions.aspx`, {
+      Accept: "text/html",
+    });
+    if (!res.ok) throw new Error(`Promotions HTTP ${res.status} (${res.statusText})`);
+    const html = await res.text();
+    this.readStorePage(html);
+    // Two thirds of the page's products carry no offer text (seen live): the
+    // ones that say what the offer is come first, the site's order otherwise kept.
+    const all = this.pageProducts(html, "sa page de promotions");
+    const products = [...all.filter((p) => p.offer), ...all.filter((p) => !p.offer)];
+    this.offersCache = { key, at: Date.now(), products };
+    return products;
+  }
+
+  /** The product records of a page (search, offers), without the cart's. */
+  private pageProducts(html: string, what: string): Product[] {
     // The search page embeds product data inside `initOptions(...)` widget
     // calls as `{objContenu:{lstElements:[{objElement:{...iIdProduit...}}]}}`.
     // Each `objElement` is pure JSON, so we scan the page for every product
@@ -139,13 +200,23 @@ export class LeclercClient {
     // context every page carries is cut out first: cart lines are not results.
     const seen = new Set<string>();
     const products: Product[] = [];
-    for (const rp of scanProductRecords(withoutCartContext(html))) {
+    const { records, unreadable } = scanProducts(withoutCartContext(html));
+    for (const rp of records) {
       if (rp.sType !== "Produit") continue;
       const id = String(rp.iIdProduit);
       if (seen.has(id)) continue;
       seen.add(id);
       products.push(mapProduct(rp));
     }
+    // Product records that cannot be read, or that all come out without a
+    // price: the page changed. An empty list would read as "no such product".
+    if (
+      (products.length === 0 && unreadable > 0) ||
+      (products.length > 0 && products.every((p) => p.price === 0))
+    ) {
+      throw new SiteChangedError(what);
+    }
+    for (const p of products) this.remember(p);
     return products;
   }
 
@@ -282,7 +353,7 @@ export class LeclercClient {
     const res = await this.send(sel, "GET", this.searchUrl(sel, NO_MATCH_QUERY), { Accept: "text/html" });
     if (!res.ok) throw new Error(`Cart read HTTP ${res.status} (${res.statusText})`);
     const html = await res.text();
-    assertStorePage(html);
+    this.readStorePage(html);
 
     const arr = extractArrayNamed(html, "lstProduits");
     const items: CartItem[] = [];
@@ -295,10 +366,16 @@ export class LeclercClient {
         if (seen.has(id)) continue;
         seen.add(id);
         const product = mapProduct(rp);
+        this.remember(product);
         const lineTotal =
           num(rp.rTotalAPayer) ?? parseEuro(rp.sTotalAPayer) ?? round2(product.price * qty);
         items.push({ product, quantity: qty, lineTotal });
       }
+    }
+    // The light summary lists lines the full list did not give: the format changed.
+    const light = extractArrayNamed(html, "lstProduitsLight");
+    if (items.length === 0 && light && scanProductRecords(light).some((r) => (num(r.iQtePanier) ?? 0) > 0)) {
+      throw new SiteChangedError("le panier de ses pages");
     }
     const grandTotal =
       parseEuro(extractCartTotal(html)) ?? round2(items.reduce((s, i) => s + i.lineTotal, 0));

@@ -16,6 +16,7 @@
 import { PageResponse } from "../browser.js";
 import { isStoreHost, isStoreId } from "../hosts.js";
 import { PageHttp } from "./http.js";
+import { sessionDriveFromUrl } from "./parse.js";
 
 const API_BASE =
   "https://api-recherchemagasins.leclercdrive.fr/API_RechercheMagasins/api/v1";
@@ -59,6 +60,13 @@ interface NearbyPoint {
 
 export class StoreLocator {
   constructor(private readonly http: PageHttp) {}
+
+  /**
+   * The drive the Chrome window's Leclerc session is on, as the site showed it
+   * the last time the locator's page was opened; undefined before that, or
+   * when the session has no drive.
+   */
+  sessionDrive: { storeId: string; noPR: string } | undefined;
 
   /** Search drives by postal code or city, nearest first. */
   async findStores(query: string): Promise<FoundStore[]> {
@@ -120,6 +128,9 @@ export class StoreLocator {
   private send(url: string): Promise<PageResponse> {
     return this.http.request(() => LOCATOR_PAGE, url, {
       headers: { Accept: "application/json" },
+      onResponse: (res) => {
+        this.sessionDrive = sessionDriveFromUrl(res.pageUrl);
+      },
       blockedMessage: (status) =>
         `Localisateur de magasins bloqué (HTTP ${status}). Vérifie que la fenêtre Chrome du ` +
         `serveur est ouverte, puis réessaie.`,

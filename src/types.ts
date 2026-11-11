@@ -13,10 +13,16 @@ export interface Product {
   label: string;
   /** Unit price in euros, e.g. 1.29. */
   price: number;
-  /** Offer text, e.g. "Bénéficiez de 0.40 € de remise immédiate." */
+  /** Offer text, e.g. "Avantage immédiat de 20%", "Le 2ème est offert (le moins cher des 2), profitez-en !". */
   offer?: string;
+  /** Unit price once an immediate discount is taken off, when the site gives one. */
+  promoPrice?: number;
+  /** Country of origin, when the site states one (fresh produce, fish, meat). */
+  origin?: string;
   /** Price per kilo / litre when the site exposes it, e.g. "1,29 € / l". */
   pricePerUnit?: string;
+  /** The same price as a number (euros per kilo, litre or piece), to sort by. */
+  pricePerUnitValue?: number;
   /** Total pack size, e.g. "0,6 kg", "6 l", "4 pièces". */
   size?: string;
   /** Product family as the site names it in its links (no accents), e.g. "Legumes et Poelees". */
