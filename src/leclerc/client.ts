@@ -49,6 +49,19 @@ export class LeclercClient {
     private readonly store: StoreState,
   ) {}
 
+  /** Labels of the products seen this session (searches, cart), by id: no request needed to name one. */
+  private readonly labels = new Map<string, string>();
+
+  private remember(p: Product): void {
+    if (this.labels.size >= 5000) this.labels.clear();
+    this.labels.set(p.id, p.label);
+  }
+
+  /** The label of a product seen in a search or in the cart since the server started. */
+  labelOf(productId: string): string | undefined {
+    return this.labels.get(productId);
+  }
+
   /** Cart operations, one at a time: a read-then-write must not interleave with another. */
   private cartQueue: Promise<unknown> = Promise.resolve();
 
@@ -156,6 +169,7 @@ export class LeclercClient {
     ) {
       throw new SiteChangedError("sa page de recherche");
     }
+    for (const p of products) this.remember(p);
     return products;
   }
 
@@ -305,6 +319,7 @@ export class LeclercClient {
         if (seen.has(id)) continue;
         seen.add(id);
         const product = mapProduct(rp);
+        this.remember(product);
         const lineTotal =
           num(rp.rTotalAPayer) ?? parseEuro(rp.sTotalAPayer) ?? round2(product.price * qty);
         items.push({ product, quantity: qty, lineTotal });

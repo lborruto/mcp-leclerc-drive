@@ -5,6 +5,7 @@
 
 import { FoundStore } from "./leclerc/locator.js";
 import { AddManyResult, Cart, CartChange, Product } from "./types.js";
+import { Usual } from "./usuals.js";
 
 const euro = (n: number) => `${n.toFixed(2).replace(".", ",")} €`;
 
@@ -104,7 +105,11 @@ export function formatAddMany(r: AddManyResult): string {
     return `✓ ${label} (id=${x.productId}) +${x.requested} → ${c.quantity} au panier${limited}`;
   });
   const cart = r.cart ? formatCart(r.cart) : `Panier final illisible : ${r.cartError}`;
-  return `${ok}/${r.results.length} ajout(s) réussi(s) :\n${lines.join("\n")}\n\n${cart}`;
+  const short = r.results.some((x) => (x.ok ? x.change!.limited : !/non tenté/.test(x.error ?? "")));
+  const hint = short
+    ? "\nPour ce qui manque (✗ ou ⚠️) : cherche un produit proche avec search_product et propose-le.\n"
+    : "";
+  return `${ok}/${r.results.length} ajout(s) réussi(s) :\n${lines.join("\n")}\n${hint}\n${cart}`;
 }
 
 export function formatStores(query: string, stores: FoundStore[]): string {
@@ -115,5 +120,16 @@ export function formatStores(query: string, stores: FoundStore[]): string {
   return (
     `Drives autour de « ${query} » :\n${lines.join("\n")}\n\n` +
     `Pour en choisir un : set_store avec son id. Les courses fonctionnent sur les « drive ».`
+  );
+}
+
+export function formatUsuals(storeId: string, usuals: Usual[]): string {
+  if (usuals.length === 0) {
+    return `Aucun produit habituel pour le magasin ${storeId}. save_usual en mémorise un (un nom, un id produit).`;
+  }
+  const lines = usuals.map((u) => `• ${u.name} → ${u.label ?? "produit"} (id=${u.productId})`);
+  return (
+    `${usuals.length} produit(s) habituel(s) (magasin ${storeId}) :\n${lines.join("\n")}\n\n` +
+    `Les ids vont tels quels dans add_to_cart ou add_many.`
   );
 }

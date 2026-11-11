@@ -23,21 +23,30 @@ async function listTools() {
     }),
   );
   try {
-    return { tools: (await client.listTools()).tools, instructions: client.getInstructions() ?? "" };
+    return {
+      tools: (await client.listTools()).tools,
+      prompts: (await client.listPrompts()).prompts,
+      instructions: client.getInstructions() ?? "",
+    };
   } finally {
     await client.close();
   }
 }
 
 test("the server exposes exactly the cart-filling tools", async () => {
-  const { tools, instructions } = await listTools();
+  const { tools, prompts, instructions } = await listTools();
+  assert.deepEqual(prompts.map((p) => p.name), ["courses"]);
   assert.deepEqual(tools.map((t) => t.name).sort(), [
     "add_many",
     "add_to_cart",
+    "diagnostic",
     "find_stores",
+    "forget_usual",
     "get_cart",
     "get_store",
+    "list_usuals",
     "remove_from_cart",
+    "save_usual",
     "search_product",
     "set_store",
     "update_quantity",
