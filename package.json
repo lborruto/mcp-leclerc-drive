@@ -21,6 +21,7 @@
     "test": "npm run build && npm run clean:test && tsc -p tsconfig.test.json && node --test \"build-test/test/**/*.test.js\"",
     "clean:test": "node -e \"require('node:fs').rmSync('build-test',{recursive:true,force:true})\"",
     "check:hosts": "node scripts/check-hosts.mjs",
+    "bundle": "npm run build && node scripts/build-mcpb.mjs",
     "prepare": "npm run build"
   },
   "keywords": [
