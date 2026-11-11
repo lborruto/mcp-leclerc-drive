@@ -292,8 +292,11 @@ server.registerTool(
   },
   () =>
     run(async () => {
-      const s = store.current();
-      return `Magasin actif : ${s.name ?? s.storeId} (id=${s.storeId} @ ${s.host}).\n${await browser.status()}`;
+      const s = store.chosenOrUndefined();
+      const line = s
+        ? `Magasin actif : ${s.name ?? s.storeId} (id=${s.storeId} @ ${s.host}).`
+        : "Aucun drive choisi pour l'instant : find_stores (code postal ou ville), puis set_store.";
+      return `${line}\n${await browser.status()}`;
     }),
 );
 
@@ -369,7 +372,7 @@ server.registerTool(
   },
   () =>
     run(async () => {
-      const s = store.current();
+      const s = store.chosenOrUndefined();
       let session: string;
       try {
         const cart = await client.getCart();
@@ -383,9 +386,11 @@ server.registerTool(
         `mcp-leclerc-drive ${pkg.version} · Node ${process.version} · ${process.platform} ${process.arch}`,
         `Chrome : ${chrome ?? "pas de réponse"} · port ${config.chromePort}${config.headless ? " · headless" : ""}`,
         await browser.status(),
-        `Magasin : id=${s.storeId}${s.noPR !== s.storeId ? ` (relais ${s.noPR})` : ""} @ ${s.host}`,
+        s
+          ? `Magasin : id=${s.storeId}${s.noPR !== s.storeId ? ` (relais ${s.noPR})` : ""} @ ${s.host}`
+          : "Magasin : aucun drive choisi",
         `Session Leclerc Drive : ${session}`,
-        `Produits habituels : ${usuals.list(s.storeId).length}`,
+        `Produits habituels : ${s ? usuals.list(s.storeId).length : 0}`,
       ];
       // No user name in a text meant to be pasted in public.
       return lines.join("\n").split(homedir()).join("~");
@@ -440,10 +445,10 @@ async function main() {
   process.on("SIGINT", () => void shutdown());
   process.on("SIGTERM", () => void shutdown());
   await server.connect(transport);
-  const s = store.current();
+  const s = store.chosenOrUndefined();
   // stderr only — stdout is the MCP channel.
   console.error(
-    `mcp-leclerc-drive ${pkg.version} ready (store ${s.storeId} @ ${s.host}, ` +
+    `mcp-leclerc-drive ${pkg.version} ready (${s ? `store ${s.storeId} @ ${s.host}` : "no store chosen yet"}, ` +
       `Chrome on 127.0.0.1:${config.chromePort}${config.headless ? ", headless" : ""})`,
   );
 }
