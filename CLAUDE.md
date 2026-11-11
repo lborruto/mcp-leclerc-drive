@@ -84,4 +84,4 @@ API reference: `docs/api-capture.md`.
 | 5 | Product details: inspect raw `objElement` fields (1-2 live searches), expose only what exists | ✅ |
 | 6 | Wrap-up: README, summary since `ac341d7`, grep for URLs outside the allowlist in `src/` and `dist/` | ✅ |
 | + | Carte blanche (2026-11-01): bug fixes, tests, CI/CD, branch protection, SECURITY/CONTRIBUTING, portfolio page | ✅ (v0.4.0 released 2026-11-01) |
-| 7 | 0.5.0 (2026-11-11): sort, usual products, `diagnostic`, `courses` prompt, changed-page errors, no default drive, `.mcpb` bundle, French README, `browse_offers`, session drive in `find_stores`/`set_store`, login warning, zero-result fix | 🔄 (in PR #9; then tag v0.5.0 and outreach, on the owner's go-ahead). Aisle browsing left out: the aisle menu is not in the pages. |
+| 7 | 0.5.0 (2026-11-11): sort, usual products, `diagnostic`, `courses` prompt, changed-page errors, no default drive, `.mcpb` bundle, French README, `browse_offers`, session drive in `find_stores`/`set_store`, login warning, zero-result fix | ✅ (v0.5.0 released 2026-11-11, bundle tested in Claude Desktop). Aisle browsing left out: the aisle menu is not in the pages. |
