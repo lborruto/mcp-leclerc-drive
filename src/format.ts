@@ -24,24 +24,46 @@ export function formatProduct(p: Product): string {
   return bits.join(" ");
 }
 
+/** How search results are ordered: the site's order, cheapest first, or cheapest per kilo/litre first. */
+export type SearchSort = "pertinence" | "prix" | "prix_unite";
+
+const SORT_LABEL: Record<SearchSort, string> = {
+  pertinence: "",
+  prix: ", du moins cher au plus cher",
+  prix_unite: ", du moins cher au plus cher au kilo/litre",
+};
+
+/** Stable sort; products without the sorted price (no per-unit price) go last. */
+function sorted(products: Product[], sort: SearchSort): Product[] {
+  if (sort === "pertinence") return products;
+  const key = (p: Product) => (sort === "prix" ? p.price : p.pricePerUnitValue) ?? Infinity;
+  return [...products].sort((a, b) => {
+    const [ka, kb] = [key(a), key(b)];
+    return ka === kb ? 0 : ka < kb ? -1 : 1;
+  });
+}
+
 /**
- * Search results for the model: available products first (the site's order
- * otherwise kept), at most `limit`, with a count of what was left out.
+ * Search results for the model: available products first, then in the asked
+ * order (the site's by default), at most `limit`, with a count of what was
+ * left out.
  */
 export function formatSearch(
   query: string,
   products: Product[],
-  opts: { limit: number; onlyAvailable: boolean },
+  opts: { limit: number; onlyAvailable: boolean; sort?: SearchSort },
 ): string {
   if (products.length === 0) return `Aucun produit trouvé pour « ${query} ».`;
   const pool = opts.onlyAvailable ? products.filter((p) => p.available) : products;
   if (pool.length === 0) return `Aucun produit disponible pour « ${query} » (${products.length} indisponible(s)).`;
-  const ordered = [...pool.filter((p) => p.available), ...pool.filter((p) => !p.available)];
+  const sort = opts.sort ?? "pertinence";
+  const inOrder = sorted(pool, sort);
+  const ordered = [...inOrder.filter((p) => p.available), ...inOrder.filter((p) => !p.available)];
   const shown = ordered.slice(0, opts.limit);
   const head =
     shown.length < ordered.length
-      ? `${ordered.length} produit(s) pour « ${query} », les ${shown.length} premiers :`
-      : `${ordered.length} produit(s) pour « ${query} » :`;
+      ? `${ordered.length} produit(s) pour « ${query} »${SORT_LABEL[sort]}, les ${shown.length} premiers :`
+      : `${ordered.length} produit(s) pour « ${query} »${SORT_LABEL[sort]} :`;
   const more = shown.length < ordered.length ? `\n… ${ordered.length - shown.length} autre(s) : précise la recherche ou augmente limit.` : "";
   return `${head}\n${shown.map(formatProduct).join("\n")}${more}`;
 }

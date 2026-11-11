@@ -65,6 +65,7 @@ test("mapProduct builds a Product from a raw record", () => {
     price: 1.29,
     offer: undefined,
     pricePerUnit: "1,29 € / L",
+    pricePerUnitValue: undefined,
     size: "1 l",
     family: "Lait et Boissons lactees",
     rating: { stars: 4.5, reviews: 149 },

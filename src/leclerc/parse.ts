@@ -85,6 +85,7 @@ export function mapProduct(rp: RawProduct): Product {
     price,
     offer: offer ? decodeEntities(offer) : undefined,
     pricePerUnit: rp.sPrixParUniteDeMesure || undefined,
+    pricePerUnitValue: positive(num(rp.nrPVParUniteDeMesureTTC)),
     size: packSize(rp.nrContenanceTotale, rp.sUniteMesureTotale),
     family: familyName(rp.sUrlVoirRayon),
     rating: stars !== undefined && reviews ? { stars, reviews } : undefined,
@@ -92,6 +93,10 @@ export function mapProduct(rp: RawProduct): Product {
     inCart: inCart && inCart > 0 ? inCart : undefined,
     imageUrl: rp.sUrlVignetteProduit || undefined,
   };
+}
+
+function positive(n: number | undefined): number | undefined {
+  return n !== undefined && n > 0 ? n : undefined;
 }
 
 /** "0,6 kg", "6 l", "4 pièces" from the total pack size. */

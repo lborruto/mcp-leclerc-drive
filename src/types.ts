@@ -17,6 +17,8 @@ export interface Product {
   offer?: string;
   /** Price per kilo / litre when the site exposes it, e.g. "1,29 € / l". */
   pricePerUnit?: string;
+  /** The same price as a number (euros per kilo, litre or piece), to sort by. */
+  pricePerUnitValue?: number;
   /** Total pack size, e.g. "0,6 kg", "6 l", "4 pièces". */
   size?: string;
   /** Product family as the site names it in its links (no accents), e.g. "Legumes et Poelees". */

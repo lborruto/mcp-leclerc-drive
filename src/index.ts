@@ -117,11 +117,17 @@ server.registerTool(
         .default(SEARCH_DEFAULT_RESULTS)
         .describe(`Nombre de produits à afficher (${SEARCH_DEFAULT_RESULTS} par défaut)`),
       only_available: z.boolean().default(false).describe("N'afficher que les produits disponibles"),
+      sort: z
+        .enum(["pertinence", "prix", "prix_unite"])
+        .default("pertinence")
+        .describe("Ordre : pertinence (celui du site), prix, ou prix_unite (prix au kilo/litre, le moins cher d'abord)"),
     },
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
-  ({ query, limit, only_available }) =>
-    run(async () => formatSearch(query, await client.searchProducts(query), { limit, onlyAvailable: only_available })),
+  ({ query, limit, only_available, sort }) =>
+    run(async () =>
+      formatSearch(query, await client.searchProducts(query), { limit, onlyAvailable: only_available, sort }),
+    ),
 );
 
 server.registerTool(
