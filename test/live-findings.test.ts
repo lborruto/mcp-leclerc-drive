@@ -39,10 +39,11 @@ test("the client notes whether the page says a customer is logged in", async () 
 
 test("offers: read from the promotions page once, then kept", async () => {
   const { chrome, client } = setup((url) =>
-    url.pathname.endsWith("/promotions.aspx") ? { body: storePage([BREAD, { ...BREAD, iIdProduit: 2 }]) } : { body: storePage() },
+    url.pathname.endsWith("/promotions.aspx") ? { body: storePage([BREAD, { ...BREAD, iIdProduit: 2, sTexteTooltipLot: "Le 2ème est offert" }]) } : { body: storePage() },
   );
   assert.equal((await client.offers()).length, 2);
-  assert.equal((await client.offers()).length, 2);
+  // The product that says what its offer is comes first.
+  assert.deepEqual((await client.offers()).map((p) => p.id), ["2", "1"]);
   assert.equal(chrome.fetches.filter((u) => u.includes("promotions.aspx")).length, 1);
 });
 

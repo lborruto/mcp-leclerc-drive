@@ -183,7 +183,10 @@ export class LeclercClient {
     if (!res.ok) throw new Error(`Promotions HTTP ${res.status} (${res.statusText})`);
     const html = await res.text();
     this.readStorePage(html);
-    const products = this.pageProducts(html, "sa page de promotions");
+    // Two thirds of the page's products carry no offer text (seen live): the
+    // ones that say what the offer is come first, the site's order otherwise kept.
+    const all = this.pageProducts(html, "sa page de promotions");
+    const products = [...all.filter((p) => p.offer), ...all.filter((p) => !p.offer)];
     this.offersCache = { key, at: Date.now(), products };
     return products;
   }
