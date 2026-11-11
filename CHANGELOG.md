@@ -12,6 +12,12 @@ published them to npm. This repository continues from 0.3.0.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-11
+
+Easier to install and to live with: a one-file install for Claude Desktop, usual products, offers,
+and clearer answers when something is off (no drive chosen, logged out, another drive, a changed
+page).
+
 ### Added
 
 - A Claude Desktop bundle, `mcp-leclerc-drive-X.Y.Z.mcpb`, attached to each release: open it to
