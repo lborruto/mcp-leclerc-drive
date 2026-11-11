@@ -12,19 +12,9 @@
   <a href="LICENSE"><img alt="Licence: MIT" src="https://img.shields.io/badge/licence-MIT-blue.svg"></a>
 </p>
 
-```text
-You     J'ai besoin de beurre doux et d'un pack d'eau gazeuse.
+<p align="center"><img src="docs/screenshots/demo.svg" alt="A shopping conversation: Claude searches E.Leclerc Drive for butter, adds two packs of sparkling water to the cart, then lists the offers on ground coffee sorted by price per kilo. Nothing is ordered." width="980"></p>
 
-Claude  ▸ search_product « beurre doux »
-        Beurre Extra fin Les Croisés Doux - 82 % MG - 125g — 1,49 € [11,92 € / kg] · 0,125 kg · Cremerie · 4/5 (15 avis) id=29856
-        Beurre Extra fin Les Croisés Doux - 82% MG - 250g — 2,35 € [9,40 € / kg] · 0,25 kg · Cremerie · 4/5 (87 avis) id=2111
-        Beurre Tendre Les Croisés Doux - 82% MG - 250g — 2,51 € [10,04 € / kg] · 0,25 kg · Cremerie · 3,5/5 (62 avis) id=983
-        …
-        ▸ add_to_cart 28099 ×2
-        Ajouté — Eau minérale gazeuse St Diery Naturelle - 6x1,25L (id=28099) : 2 au panier, 4,32 €.
-```
-
-<sub>Tool output from a live test on 1 November 2026 (store and prices of that day).</sub>
+<sub>Tool output from live runs on 1 and 11 November 2026 (store, prices and offers of those days), shortened to fit.</sub>
 
 ## What it does
 
