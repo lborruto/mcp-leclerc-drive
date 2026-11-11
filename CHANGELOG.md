@@ -26,8 +26,12 @@ page).
   product of your drive, on your computer only, so the weekly shop does not search again.
 - `search_product` takes `sort`: `pertinence` (the site's order), `prix` or `prix_unite` (cheapest
   per kilo or litre first).
-- `browse_offers`: the products on offer in your drive, filtered by words (« café »), sorted like
-  a search. The offers page is heavy, so it is read once and kept 10 minutes.
+- `browse_offers`: the products on offer in your drive, filtered by whole words (« café », not
+  « caféine »), sorted like a search. The offers page is heavy, so it is read once and kept 10
+  minutes.
+- Products show more of what the site says: lot offers (« Le 2ème est offert », « 20% en Ticket
+  E.Leclerc »), the price once an immediate discount is taken off, and the country of origin of
+  fresh produce.
 - `find_stores` marks the drive the Chrome window's session is on, and `set_store` warns when you
   pick another one, instead of leaving you with an expired-session page later.
 - The cart tools warn when nobody is logged in in the Chrome window: the cart is then a

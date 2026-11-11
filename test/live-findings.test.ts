@@ -49,9 +49,13 @@ test("offers: read from the promotions page once, then kept", async () => {
 test("filterOffers: every word, whatever the accents and case, in the label or the family", () => {
   const p = (id: string, label: string, family?: string) => ({ id, label, family, price: 1, available: true });
   const all = [p("1", "Crème fraîche épaisse"), p("2", "Café moulu", "Cafes"), p("3", "Yaourt nature", "Cremerie")];
-  assert.deepEqual(filterOffers(all, "CREME").map((x) => x.id), ["1", "3"]);
+  assert.deepEqual(filterOffers(all, "CREME").map((x) => x.id), ["1"]);
+  assert.deepEqual(filterOffers(all, "cremerie").map((x) => x.id), ["3"]);
   assert.deepEqual(filterOffers(all, "creme epaisse").map((x) => x.id), ["1"]);
   assert.equal(filterOffers(all, "  ").length, 3);
+  // Whole words, give or take a plural: « café » is not « caféine ».
+  const drinks = [p("4", "Soda sans caféine"), p("5", "Cafés en grains"), p("6", "Filtre à café")];
+  assert.deepEqual(filterOffers(drinks, "café").map((x) => x.id), ["5", "6"]);
   const text = formatSearch("café", filterOffers(all, "café"), { limit: 5, onlyAvailable: true, what: "produit(s) en promotion" });
   assert.match(text, /^1 produit\(s\) en promotion pour « café » :/);
   assert.match(formatSearch("thé", [], { limit: 5, onlyAvailable: true, what: "produit(s) en promotion" }), /Aucun produit en promotion trouvé/);

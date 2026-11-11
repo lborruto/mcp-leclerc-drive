@@ -223,3 +223,12 @@ set_store switch to any drive) — see below.
   shape (156 for the one tried). The aisle menu itself is not in the page (client-side templates
   only), so there is no list of aisle ids to browse from; not exposed as a tool.
 - No `iIdProduit` occurrence was unreadable on any of these pages.
+- **Offer fields** (1 840 records of the offers page): `sTexteTooltipLot` (667 records) is the
+  offer text for lots and immediate advantages, `sTexteLogoBRII` (357) the same text for the
+  immediate ones; `sTexteLogoCoupon` was empty everywhere. `nrPVBRIIDeduit` (84, always with
+  « Avantage immédiat de … ») is the unit price once the discount is taken off, lower than
+  `nrPVUnitaireTTC` in every record and equal to `sPrixPromo`. The other records carry no offer
+  text.
+- **Origin.** `lstMentionsProduit` holds regulatory mentions of fresh products
+  (`sLibelleMention` / `sLibelleValeur`): « Origine » (FRANCE, ESPAGNE…), « Variété », « Calibre »,
+  « Catégorie », « Zone de pêche »… Only « Origine » is exposed.

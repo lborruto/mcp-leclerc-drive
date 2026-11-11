@@ -13,10 +13,12 @@ export function formatProduct(p: Product): string {
   const bits = [
     p.label,
     `— ${euro(p.price)}`,
+    p.promoPrice !== undefined ? `(${euro(p.promoPrice)} remise déduite)` : null,
     p.pricePerUnit ? `[${p.pricePerUnit}]` : null,
     p.size ? `· ${p.size}` : null,
     p.offer ? `🏷️ ${p.offer}` : null,
     p.family ? `· ${p.family}` : null,
+    p.origin ? `· origine ${p.origin}` : null,
     p.rating ? `· ${p.rating.stars.toString().replace(".", ",")}/5 (${p.rating.reviews} avis)` : null,
     p.inCart ? `· ${p.inCart} au panier` : null,
     p.available ? null : "⚠️ indisponible",
@@ -140,13 +142,20 @@ function plain(s: string): string {
   return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 }
 
-/** Products on offer whose label or family holds every word of `query` (all of them without a query). */
+const tokens = (s: string) => plain(s).split(/[^a-z0-9]+/).filter(Boolean);
+/** Same word, give or take a plural: "cafe" is "cafes", not "cafeine". */
+const sameWord = (a: string, b: string) => a === b || a === `${b}s` || a === `${b}x` || b === `${a}s` || b === `${a}x`;
+
+/**
+ * Products on offer whose label or family holds every word of `query`, as
+ * whole words (all products without a query).
+ */
 export function filterOffers(products: Product[], query: string): Product[] {
-  const words = plain(query).split(/\s+/).filter(Boolean);
+  const words = tokens(query);
   if (words.length === 0) return products;
   return products.filter((p) => {
-    const text = plain(`${p.label} ${p.family ?? ""}`);
-    return words.every((w) => text.includes(w));
+    const text = tokens(`${p.label} ${p.family ?? ""}`);
+    return words.every((w) => text.some((t) => sameWord(t, w)));
   });
 }
 

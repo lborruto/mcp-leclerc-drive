@@ -80,6 +80,13 @@ export interface RawProduct {
   sType?: string;
   /** Instant-discount text, e.g. "Bénéficiez de 0.40 € de remise immédiate." */
   sTexteLogoCoupon?: string;
+  /** Offer texts of lots and immediate advantages ("Le 2ème est offert…", "Avantage immédiat de 20%"). */
+  sTexteTooltipLot?: string;
+  sTexteLogoBRII?: string;
+  /** Unit price with the immediate discount taken off (same as sPrixPromo, as a number). */
+  nrPVBRIIDeduit?: number;
+  /** Regulatory mentions of fresh products: "Origine" → "FRANCE", "Variété", "Calibre"… */
+  lstMentionsProduit?: Array<{ sLibelleMention?: string; sLibelleValeur?: string }>;
   /** Link to the product's family page: /magasin-…/rayon-<iIdFamille>-<Family-Name>.aspx */
   sUrlVoirRayon?: string;
   iIdFamille?: number;
@@ -104,7 +111,11 @@ export function mapProduct(rp: RawProduct): Product {
     [rp.sLibelleLigne1, rp.sLibelleLigne2].filter(Boolean).join(" ").replace(/\s+/g, " ").trim(),
   );
   const price = num(rp.nrPVUnitaireTTC) ?? parseEuro(rp.sPrixUnitaire) ?? 0;
-  const offer = rp.sTexteLogoCoupon?.trim();
+  const offer = (rp.sTexteLogoCoupon || rp.sTexteTooltipLot || rp.sTexteLogoBRII)?.trim();
+  const promoPrice = positive(num(rp.nrPVBRIIDeduit));
+  const origin = Array.isArray(rp.lstMentionsProduit)
+    ? rp.lstMentionsProduit.find((m) => m?.sLibelleMention === "Origine")?.sLibelleValeur?.trim()
+    : undefined;
   const reviews = num(rp.objAvisClient?.NbAvis);
   const stars = num(rp.objAvisClient?.Note?.Valeur);
   const inCart = num(rp.iQuantitePanier) ?? num(rp.iQtePanier);
@@ -113,6 +124,8 @@ export function mapProduct(rp: RawProduct): Product {
     label: label || `Produit ${rp.iIdProduit}`,
     price,
     offer: offer ? decodeEntities(offer) : undefined,
+    promoPrice: promoPrice !== undefined && promoPrice < price ? promoPrice : undefined,
+    origin: origin ? decodeEntities(origin) : undefined,
     pricePerUnit: rp.sPrixParUniteDeMesure || undefined,
     pricePerUnitValue: positive(num(rp.nrPVParUniteDeMesureTTC)),
     size: packSize(rp.nrContenanceTotale, rp.sUniteMesureTotale),
